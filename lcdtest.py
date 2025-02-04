@@ -88,7 +88,12 @@ def apply_op(a, b, op):
     if op == '+': return a + b
     if op == '-': return a - b
     if op == '*': return a * b
-    if op == '/': return a / b  # Ensure float division
+    if op == '/':
+        if b == 0:
+            lcd.clear()
+            lcd.cursor_pos = (0,0)
+            return "Math Error"
+        return a / b  # Ensure float division
 
 def infix_to_postfix(expression):
     output = []  # Postfix output list
