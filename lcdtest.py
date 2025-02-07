@@ -26,6 +26,7 @@ lcd.clear()
 
 demo_text="777888999444555666"
 display_text = ""
+text_after_verifying = ""
 equation = []
 result_text= ""
 cursor_pos = 0  
@@ -38,7 +39,7 @@ def slice_equation(display_text):
     global equation
     current = ""
     for char in display_text:
-        if char in "+-*/()=":  # Thêm dấu ngoặc vào đây
+        if char in "+-*/()=^":  # Thêm dấu ngoặc vào đây
             if current:  # Thêm số đang xử lý vào danh sách
                 equation.append(current)
                 current = ""
@@ -74,80 +75,142 @@ def syntax_error_display():
     lcd.write_string("Syntax Error")
     print("Syntax Error")
 
+
+
+
 #--------------------------- Shunting Yard Algorithm --------------------------#
+
+
 def precedence(op):
-    # Define operator precedence
-    if op in ('+', '-'):
+    if op in ('+', '-'): 
         return 1
-    if op in ('*', '/'):
+    if op in ('*', '/'): 
         return 2
+    if op == '^':  # Change to '^' for exponentiation
+        return 3  # Highest precedence for power
     return 0
 
+from math import pow
+
 def apply_op(a, b, op):
-    # Apply the operator to two operands
     if op == '+': return a + b
     if op == '-': return a - b
     if op == '*': return a * b
     if op == '/':
         if b == 0:
             lcd.clear()
-            lcd.cursor_pos = (0,0)
+            lcd.cursor_pos = (0, 0)
             return "Math Error"
-        return a / b  # Ensure float division
+        return a / b
+    if op == '^':  # Change to '^' for exponentiation
+        return pow(a, b)  # Or use a ** b for exponentiation
+
+def is_operator(token):
+    return token in ['+', '-', '*', '/', '^']
 
 def infix_to_postfix(expression):
-    output = []  # Postfix output list
-    stack = []   # Operator stack
+    output = []
+    stack = []
+    i = 0
 
-    for token in expression:
-        if token.isdigit():  # If token is an operand, add to output
-            output.append(token)
+    while i < len(expression):
+        token = expression[i]
+        print(token)
+        # Xử lý số âm hoặc dương khi có dấu trước số
+        if token in ('+', '-') and (i == 0 or expression[i-1] in '*/(+ -'):
+            num = token
+            i += 1
+            while i < len(expression) and (expression[i].isdigit() or expression[i] == '.'):
+                num += expression[i]
+                i += 1
+            output.append(num)
+            continue
+
+        if token.isdigit() or token == '.':
+            num = token
+            while i + 1 < len(expression) and (expression[i + 1].isdigit() or expression[i + 1] == '.'):
+                i += 1
+                num += expression[i]
+            output.append(num)
         elif token == '(':
             stack.append(token)
         elif token == ')':
-            # Pop from stack until '(' is found
             while stack and stack[-1] != '(':
                 output.append(stack.pop())
-            stack.pop()  # Remove '('
-        else:  # Operator
-            while (stack and precedence(stack[-1]) >= precedence(token)):
+            stack.pop()
+        elif is_operator(token):
+            while stack and precedence(stack[-1]) >= precedence(token):
                 output.append(stack.pop())
             stack.append(token)
+        else:
+            lcd.clear()
+            lcd.cursor_pos = (0, 0)
+            lcd.write_string("Invalid Input")
+            return []
 
-    # Pop all remaining operators from the stack
+        i += 1
+
     while stack:
         output.append(stack.pop())
 
     return output
 
 def evaluate_postfix(postfix):
-    stack = []  # Stack to store operands
+    stack = []
 
     for token in postfix:
-        if token.isdigit():  # If token is an operand, push to stack
-            stack.append(int(token))
-        else:  # Operator
+        print(token)
+        if token.lstrip('+-').replace('.', '', 1).isdigit():
+            stack.append(float(token))
+        elif is_operator(token):
+            print("In is operator ")
+            if len(stack) < 2:
+                lcd.clear()
+                lcd.cursor_pos = (0, 0)
+                lcd.write_string("Syntax Error")
+                return "Error"
             b = stack.pop()
             a = stack.pop()
+            
             result = apply_op(a, b, token)
             stack.append(result)
+        else:
+            lcd.clear()
+            lcd.cursor_pos = (0, 0)
+            lcd.write_string("Invalid Input")
+            return "Error"
 
-    return stack[0]  # Final result
+    if len(stack) != 1:
+        lcd.clear()
+        lcd.cursor_pos = (0, 0)
+        lcd.write_string("Syntax Error")
+        return "Error"
+
+    return stack[0]
 
 def normal_calculation():
-    global equation,result_text
+    global equation, result_text
     slice_equation(display_text)
-    postfix = infix_to_postfix(equation)
-    lcd.cursor_pos = (1,0)
-    lcd.write_string(f"{evaluate_postfix(postfix)}")
-    equation = [] #Reset equation
+    print(f"equation= {equation}")
+    expression = ''.join(equation)
+    postfix = infix_to_postfix(expression)
+    if postfix:
+        lcd.cursor_pos = (1, 0)
+        result = evaluate_postfix(postfix)
+        if result != "Error":
+            lcd.write_string(f"{result}")
+    equation = []
+
+
+
+
 
 #-----------------------------------------------------------------------------------#
 
 def error_checking():
     global display_text
     is_error = False
-    if "*/" in display_text or "/*" in display_text or "+*" in display_text or "-*" in display_text or "+/" in display_text or "-/" in display_text:
+    if "*/" in display_text or "/*" in display_text or "+*" in display_text or "-*" in display_text or "+/" in display_text or "-/" in display_text or "**" in display_text or "//" in display_text:
         is_error = True
         print("loi dau")
     elif display_text.count(")") != display_text.count("("):
@@ -157,17 +220,14 @@ def error_checking():
     elif "-)" in display_text or "+)" in display_text or "*)" in display_text or "/)" in display_text or "(*" in display_text or "(/)" in display_text:
         is_error = True
     return is_error
-
-
-
-    
+ 
 
 def find_x():
     pass
 
 
 def handle_button_press(row, column):
-    global display_text, cursor_pos,cursor_blink_pos,is_shift_left_pressed
+    global display_text, cursor_pos,cursor_blink_pos,is_shift_left_pressed,equation
     current_time = time.time() 
     if (current_time - last_pressed_time[row][column] > 0.2):  # Debounce 300ms
         last_pressed_time[row][column] = current_time
