@@ -35,11 +35,12 @@ is_shift_left_pressed=0
 default_x=0
 is_x_exist=0
 
+
 def slice_equation(display_text):
     global equation
     current = ""
     for char in display_text:
-        if char in "+-*/()=^":  # Thêm dấu ngoặc vào đây
+        if char in "+-*/()=^x":  
             if current:  # Thêm số đang xử lý vào danh sách
                 equation.append(current)
                 current = ""
@@ -80,7 +81,6 @@ def syntax_error_display():
 
 #--------------------------- Shunting Yard Algorithm --------------------------#
 
-
 def precedence(op):
     if op in ('+', '-'): 
         return 1
@@ -89,8 +89,6 @@ def precedence(op):
     if op == '^':  # Change to '^' for exponentiation
         return 3  # Highest precedence for power
     return 0
-
-from math import pow
 
 def apply_op(a, b, op):
     if op == '+': return a + b
@@ -167,7 +165,7 @@ def evaluate_postfix(postfix):
             if len(stack) < 2:
                 lcd.clear()
                 lcd.cursor_pos = (0, 0)
-                lcd.write_string("Syntax Error")
+                lcd.write_string("Syntax Error POSTFIX") #Rename to Syntax Error after code complete
                 return "Error"
             b = stack.pop()
             a = stack.pop()
@@ -183,29 +181,47 @@ def evaluate_postfix(postfix):
     if len(stack) != 1:
         lcd.clear()
         lcd.cursor_pos = (0, 0)
-        lcd.write_string("Syntax Error")
+        lcd.write_string("Syntax Error len stack") #Rename to Syntax Error after code complete
         return "Error"
 
     return stack[0]
 
-def normal_calculation():
-    global equation, result_text
-    slice_equation(display_text)
-    print(f"equation= {equation}")
-    expression = ''.join(equation)
-    postfix = infix_to_postfix(expression)
-    if postfix:
-        lcd.cursor_pos = (1, 0)
-        result = evaluate_postfix(postfix)
-        if result != "Error":
-            lcd.write_string(f"{result}")
-    equation = []
-
-
-
-
 
 #-----------------------------------------------------------------------------------#
+
+#----------Coefficient and Function for calculating the derivative---------------#
+
+COEFFICIENT_H = 1e-5 #10^-5
+
+DEMO_X = 5
+
+def derivative_calculation(x_para):
+    global equation
+    func_xh = equation.copy()
+    func_x = equation.copy()
+
+    func_xh = [expr.replace("x", str(x_para+COEFFICIENT_H)) for expr in func_xh]
+    func_x = [expr.replace("x", str(x_para)) for expr in func_x]
+    
+    result = (normal_calculation(func_xh) - normal_calculation(func_x))/COEFFICIENT_H
+    return result
+    
+#---------------------------------------------------------------------------------#
+
+def normal_calculation(equation_para):
+    print(f"equation_para= {equation_para}")
+    expression = ''.join(equation_para)
+    postfix = infix_to_postfix(expression)
+    if postfix:
+        result = evaluate_postfix(postfix)
+        if result != "Error":
+            return result
+    
+
+def find_x():
+    result = 0
+    return result
+
 
 def error_checking():
     global display_text
@@ -215,15 +231,17 @@ def error_checking():
         print("loi dau")
     elif display_text.count(")") != display_text.count("("):
         is_error = True
+        print("Loi thieu ngoac")
     elif "()" in display_text:
         is_error = True
+        print("Loi trong ngoac khong co gi")
     elif "-)" in display_text or "+)" in display_text or "*)" in display_text or "/)" in display_text or "(*" in display_text or "(/)" in display_text:
         is_error = True
+        print("Loi chi co dau trong ngoac")
     return is_error
  
 
-def find_x():
-    pass
+
 
 
 def handle_button_press(row, column):
@@ -276,14 +294,35 @@ def handle_button_press(row, column):
             elif error_checking():
                 syntax_error_display()
             else:
-                normal_calculation()
+                equation = []
+                # slice_equation(display_text) # Generate equation after slicing
+                if "x" in display_text:
+                    temp_text = str([expr.replace("x","*0") for expr in display_text])
+                    slice_equation(temp_text) # Generate equation after slicing
+                    print(f"display text: {display_text}")
+                    print(f"temp_text: {temp_text}")
+                    print(f"equation with temp_text: {equation}")
+                else: 
+                    slice_equation(display_text) # Generate equation after slicing
+                result = normal_calculation(equation) # Take result
+                lcd.cursor_pos = (1, 0)
+                lcd.write_string(f"{result}")
+                print(f"{result}")
+                # Thiếu xử lí nếu số ra vượt 16 kí tự: 1.152921504606847e+18, thay e+18 thành *10^18.
+                # Sử dụng nút qua trái/phải để xem kết quả
             return
 
         elif pressed_button == "Solve":
-            slice_equation(display_text)
-            if "x" in equation and "=" in equation:
-                find_x()  
+            equation = []
+            slice_equation(display_text) # Generate equation after slicing
+            if "x" in display_text : #thiếu trường hợp nếu không gõ = thì mặc định tìm x với vế phải bằng 0
+                # find_x()
+                result = derivative_calculation(DEMO_X) # Take result
+                lcd.cursor_pos = (1, 0)
+                lcd.write_string(f"{result}")
+                print(f"{result}")  
             else:
+                print("Debugging line 315")
                 syntax_error_display()
             return
  
