@@ -12,12 +12,13 @@ r2 = LED(18)
 c0 = Button(25)
 c1 = Button(8)
 c2 = Button(7)
+c3 = Button(1)
 
-keypad = [["=", "x", "7"], ["4", "1", "0"], ["Shift left", "^", "8"],
-          ["5", "2", "."], ["Shift right", "Del", "9"], ["6", "3", "Calculate"],
-          ["Solve", "AC", "+"], ["-", "*", "/"]]
+keypad = [["=", "x", 7,"("], ["Shift right", "Del", 9,"Return"], ["Shift left", "^", 8,")"],
+          ["Solve", "AC", "+","null"], [4, "1", 0], [5, 2, "."],
+          [6, 3, "Calculate"], ["-", "*", "/"]]
 
-last_pressed_time = [[0, 0, 0] for _ in range(8)]
+last_pressed_time = [[0, 0, 0,0] for _ in range(8)]
 
 
 lcd = CharLCD('PCF8574', 0x27)
@@ -30,7 +31,7 @@ equation = []
 cursor_pos = 0  
 cursor_blink_pos=0
 is_shift_left_pressed=0
-initial_x= '0'
+initial_x= '0.5'
 is_in_solving = False
 is_x_enter = False
 cursor_pos_line_2 = 0
@@ -63,7 +64,6 @@ def update_display():
     if is_x_enter:
         lcd.cursor_pos = (1,0)
         lcd.write_string("x="+initial_x[:cursor_pos_line_2])
-
     print("update display")
 
 def syntax_error_display():
@@ -161,7 +161,7 @@ def evaluate_postfix(postfix):
         if token.lstrip('+-').replace('.', '', 1).isdigit():
             stack.append(float(token))
         elif is_operator(token):
-            print("In is operator ")
+            # print("In is operator ")
             if len(stack) < 2:
                 lcd.clear()
                 lcd.cursor_pos = (0, 0)
@@ -171,7 +171,7 @@ def evaluate_postfix(postfix):
             a = stack.pop()
             
             result = apply_op(a, b, token)
-            print(f"result line 172: {result}")
+            # print(f"result line 172: {result}")
             if result == "MATH ERROR":
                 return "Error"
             else:
@@ -198,24 +198,36 @@ def evaluate_postfix(postfix):
 DEMO_X = 0
 
 def derivative_calculation(x_para):
+    print("In derivative_calculation")
     global equation
-    cofficient_h = 1e-9
     func_xh = equation.copy()
     func_x = equation.copy()
-    # if abs(x_para) > 1:
-    #     cofficient_h=cofficient_h*abs(x_para)
+    if abs(x_para) <1:
+        cofficient_h=1e-2
+    else:
+        cofficient_h=1e-4
 
     func_xh = [expr.replace("x", str(x_para+cofficient_h)) for expr in func_xh]
-    func_x = [expr.replace("x", str(x_para)) for expr in func_x]
-    print(f"func_x: {func_x}")
-    print(f"ket qua phep tinh func_xh: {normal_calculation(func_xh)} ")
-    print(f"ket qua phep tinh func_x: {normal_calculation(func_x)} ")
-    result_xh = normal_calculation(func_xh)
+    func_x = [expr.replace("x", str(x_para-cofficient_h)) for expr in func_x]
+    # print(f"func_x: {func_x}")
+    # print(f"ket qua phep tinh func_xh: {normal_calculation(func_xh)} ")
+    # print(f"ket qua phep tinh func_x: {normal_calculation(func_x)} ")
+
+    # result_xh = normal_calculation(func_xh)
+    print("tinh toan func_xh---------")
+    cofficient_not_ok=True
+    while(cofficient_not_ok):
+        result_xh = normal_calculation(func_xh)
+        if(result_xh == None):
+            cofficient_h = cofficient_h / 10
+        else:
+            cofficient_not_ok=False
+    print("tinh toan func_x ---------")
     result_x = normal_calculation(func_x)
     if result_xh == "Error" or result_x == "Error":
         result = "MATH ERROR"
     else:
-        result = ( result_xh - result_x)/cofficient_h
+        result = ( result_xh - result_x)/(2*cofficient_h)
     return result
     
 #---------------------------------------------------------------------------------#
@@ -245,12 +257,12 @@ def check_x_syntax(expression_text,is_finding_x):
     return expression_text
 
 def normal_calculation(equation_para):
-    print(f"equation_para= {equation_para}")
+    # print(f"equation_para= {equation_para}")
     expression = ''.join(equation_para)
     postfix = infix_to_postfix(expression)
     if postfix:
         result = evaluate_postfix(postfix)
-        print(f"result in normal= {result}")
+        print(f"result in normal calculation function= {result}")
         if result != "Error":
             if result == 0.0: # eliminate negative -0.0
                 result = 0.0
@@ -262,7 +274,9 @@ def normal_calculation(equation_para):
 def find_x(x_para):
     func_x_nor = equation.copy()
     func_x_nor = [expr.replace("x", str(x_para)) for expr in func_x_nor]
+    print(f"func nor= {func_x_nor}")
     result_func_x_nor = normal_calculation(func_x_nor)
+    print(f"ket qua tinh nor= {result_func_x_nor} -------------------------")
     result_func_x_deri = derivative_calculation(x_para)
     if result_func_x_nor == "Error":
         return "Error"
@@ -320,7 +334,7 @@ def handle_button_press(row, column):
                 lcd.cursor_pos=(0,cursor_blink_pos)
                 is_shift_left_pressed=1
                 cursor_pos-=1
-                print(f"{display_text}")
+                # print(f"{display_text}")
                 return
             else:
                 cursor_pos-=1
@@ -336,6 +350,9 @@ def handle_button_press(row, column):
             cursor_pos = 0
             cursor_blink_pos=0
             subprocess.run('clear', shell=True) # Delete this line after debugging
+            is_x_enter=False
+            lcd.clear()
+            return
         
         elif pressed_button == "Calculate":
             if is_x_enter:
@@ -385,13 +402,14 @@ def handle_button_press(row, column):
                     lcd.cursor_pos = (1, 0)
                     lanlap = 0
                     find_x_processing = True
+                    print(f"result dau tien= {result}")
                     while(find_x_processing):
-                        result_after = find_x(result)
-                        print(f"result= {result}")
-                        print(f"result after= {result_after}")
+                        result_after = find_x(result)                   
+                        print(f"result after {lanlap}= {result_after}")
                         print("-------------------------")
-                        if(abs(result-result_after)<(3/100)):
+                        if(abs(result-result_after)<(2/100)):
                             find_x_processing = False
+                            result=result_after
                         else:
                             if lanlap>200:
                                 result = "Cannot Solve"
@@ -402,7 +420,7 @@ def handle_button_press(row, column):
                         lanlap+=1
                     
                 lcd.write_string(f"{result}")
-                print(f"{result}")
+                print(f"ket qua cuoi cung= {result}")
                 print(f"So lan lap= {lanlap}")  
             else:
                 print("Debugging line 315")
@@ -427,7 +445,7 @@ def handle_button_press(row, column):
         
         # Update LCD display
         update_display()
-        print(f"{display_text}")
+        # print(f"{display_text}")
         # print(f"chieu dai chuoi sau xu li {len(display_text)}")
         # print(f"vi tri con tro sau xu li {cursor_pos}")
         # print(f"vi tri nhay sau xu li {cursor_blink_pos}")
