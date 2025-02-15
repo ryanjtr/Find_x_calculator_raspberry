@@ -25,7 +25,6 @@ lcd = CharLCD('PCF8574', 0x27)
 lcd.cursor_mode = 'line'
 lcd.clear()
 
-demo_text="777888999444555666" #delete after code complete
 display_text = ""
 equation = []
 cursor_pos = 0  
@@ -198,14 +197,11 @@ def evaluate_postfix(postfix):
 DEMO_X = 0
 
 def derivative_calculation(x_para):
-    print("In derivative_calculation")
     global equation
     func_xh = equation.copy()
     func_x = equation.copy()
-    if abs(x_para) <1:
-        cofficient_h=1e-2
-    else:
-        cofficient_h=1e-4
+    cofficient_h=1e-2
+
 
     func_xh = [expr.replace("x", str(x_para+cofficient_h)) for expr in func_xh]
     func_x = [expr.replace("x", str(x_para-cofficient_h)) for expr in func_x]
@@ -272,19 +268,25 @@ def normal_calculation(equation_para):
     
 
 def find_x(x_para):
-    func_x_nor = equation.copy()
-    func_x_nor = [expr.replace("x", str(x_para)) for expr in func_x_nor]
-    print(f"func nor= {func_x_nor}")
-    result_func_x_nor = normal_calculation(func_x_nor)
-    print(f"ket qua tinh nor= {result_func_x_nor} -------------------------")
-    result_func_x_deri = derivative_calculation(x_para)
-    if result_func_x_nor == "Error":
-        return "Error"
-    if result_func_x_deri == "MATH Error":
-        return "Error"
-    result = x_para - (result_func_x_nor/result_func_x_deri)
-    return result
+    for lanlap in range(20):
+        func_x_nor = equation.copy()
+        func_x_nor = [expr.replace("x", str(x_para)) for expr in func_x_nor]
+        print(f"func nor= {func_x_nor}")
+        result_func_x_nor = normal_calculation(func_x_nor)
+        if result_func_x_nor == "Error":
+            return "Error"
+        print(f"ket qua tinh nor= {result_func_x_nor} -------------------------")
 
+        result_func_x_deri = derivative_calculation(x_para)
+        if result_func_x_deri == "MATH Error" or abs(result_func_x_deri) < 1e-9:
+            print("Derivative too small")
+            return "Error"
+
+        result = x_para - (result_func_x_nor/result_func_x_deri)
+        if(abs(result-x_para)<(2/100)):
+            return result
+        x_para=result
+    return "Cannot Solve"
 
 def error_checking():
     global display_text
@@ -353,7 +355,9 @@ def handle_button_press(row, column):
             is_x_enter=False
             lcd.clear()
             return
-        
+        elif pressed_button == "Return":
+            lcd.clear()
+            is_x_enter = False
         elif pressed_button == "Calculate":
             if is_x_enter:
                 is_x_enter=False
@@ -394,36 +398,14 @@ def handle_button_press(row, column):
                 while(is_x_enter):
                     scan_keypad()
                 result = find_x(float(initial_x)) # Take result
-                if result == "Error":
+                if result == "Error" or result == "Cannot Solve":
                     lcd.clear()
                     lcd.cursor_pos = (0, 0)
-                else:
-
-                    lcd.cursor_pos = (1, 0)
-                    lanlap = 0
-                    find_x_processing = True
-                    print(f"result dau tien= {result}")
-                    while(find_x_processing):
-                        result_after = find_x(result)                   
-                        print(f"result after {lanlap}= {result_after}")
-                        print("-------------------------")
-                        if(abs(result-result_after)<(2/100)):
-                            find_x_processing = False
-                            result=result_after
-                        else:
-                            if lanlap>200:
-                                result = "Cannot Solve"
-                                lcd.cursor_pos = (0, 0)
-                                lcd.clear()
-                            else:
-                                result = result_after
-                        lanlap+=1
-                    
+                else: 
+                    lcd.cursor_pos = (1, 0) 
                 lcd.write_string(f"{result}")
                 print(f"ket qua cuoi cung= {result}")
-                print(f"So lan lap= {lanlap}")  
             else:
-                print("Debugging line 315")
                 syntax_error_display()
             return
  
@@ -466,7 +448,8 @@ def scan_keypad():
             handle_button_press(row, 1)
         if c2.is_pressed:
             handle_button_press(row, 2)
-
+        if c3.is_pressed:
+            handle_button_press(row, 3)
 # lcd.write_string(f"{demo_text[:5]}")
 while True:
     scan_keypad()
