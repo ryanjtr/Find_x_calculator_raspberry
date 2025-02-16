@@ -25,12 +25,12 @@ lcd = CharLCD('PCF8574', 0x27)
 lcd.cursor_mode = 'line'
 lcd.clear()
 
-display_text = "2.5x^6.3-4.1x^3.2+8.7"
+display_text = "6x^8.5 - 3x^4.7 + 1"
 equation = []
 cursor_pos = 0  
 cursor_blink_pos=0
 is_shift_left_pressed=0
-initial_x= '0.5'
+initial_x= '0'
 is_in_solving = False
 is_x_enter = False
 cursor_pos_line_2 = 0
@@ -111,11 +111,14 @@ def infix_to_postfix(expression):
     output = []
     stack = []
     i = 0
-
+    if "j" in expression:
+        lcd.clear()
+        lcd.cursor_pos = (0, 0)
+        lcd.write_string("Complex number")
+        return "Error"
     while i < len(expression):
         token = expression[i]
         # Xử lý số âm hoặc dương khi có dấu trước số
-        print(token)
         if token in ('+', '-') and (i == 0 or expression[i-1] in '*/(+ -^'):
             num = token
             i += 1
@@ -141,15 +144,11 @@ def infix_to_postfix(expression):
             while stack and precedence(stack[-1]) >= precedence(token):
                 output.append(stack.pop())
             stack.append(token)
-        elif token == 'j':
-            lcd.clear()
-            lcd.cursor_pos = (0, 0)
-            lcd.write_string("Complex number")
-            return "Error"
         else:
+            print(f"token: {token}")
             lcd.clear()
             lcd.cursor_pos = (0, 0)
-            lcd.write_string("Invalid Input")
+            lcd.write_string("Invalid Input infix")
             return "Error"
 
         i += 1
@@ -163,6 +162,7 @@ def evaluate_postfix(postfix):
     stack = []
 
     for token in postfix:
+        
         if token.lstrip('+-').replace('.', '', 1).isdigit():
             stack.append(float(token))
         elif is_operator(token):
@@ -183,9 +183,10 @@ def evaluate_postfix(postfix):
             else:
                 stack.append(result)
         else:
+            
             lcd.clear()
             lcd.cursor_pos = (0, 0)
-            lcd.write_string("Invalid Input")
+            lcd.write_string("Invalid Input evalute")
             print("invalid input")
             return "Error"
 
@@ -234,29 +235,33 @@ def derivative_calculation(x_para):
     
 #---------------------------------------------------------------------------------#
 
-def check_x_syntax(expression_text,is_finding_x):
-    if "x" in expression_text:
-        expression_text = list(expression_text) #convert string to list
-        for i in range(0,len(expression_text)):                      
-            if expression_text[i]== 'x':
-                if i >= 0 and i != len(expression_text)-1 and expression_text[i+1].isdigit():
-                        syntax_error_display()
-                        return "Syntax Error"
-                elif i > 0:
-                    if expression_text[i-1].isdigit(): # Ex: 2x+3
-                            if is_finding_x:
-                                expression_text[i] = "*x"
-                            else:
-                                expression_text[i] = '*' + str(initial_x)
-                    elif expression_text[i-1] == '+':
-                        expression_text[i] = str(initial_x) 
-                    elif expression_text[i-1] == '-':
-                        expression_text[i] = str(initial_x) 
-                else:
-                    if not is_finding_x:
-                        expression_text[i] = str(initial_x)
-    expression_text = ''.join(expression_text) #convert list to string
-    return expression_text
+def check_x_syntax(expression_text, is_finding_x):
+    global initial_x
+
+    if "x" not in expression_text:
+        return expression_text  # Không có "x" thì không cần xử lý
+
+    new_expression = []
+    length = len(expression_text)
+
+    for i, char in enumerate(expression_text):
+        if char == 'x':
+            if i < length - 1 and expression_text[i + 1].isdigit():
+                syntax_error_display()
+                print("outrange error")
+                return "Syntax Error"
+
+            # Xử lý các trường hợp trước "x"
+            if i > 0 and expression_text[i - 1].isdigit():
+                new_expression.append("*")
+
+            # Thay thế "x" theo mục đích
+            new_expression.append("x" if is_finding_x else str(initial_x))
+        else:
+            new_expression.append(char)
+
+    return ''.join(new_expression)
+
 
 def normal_calculation(equation_para):
     # print(f"equation_para= {equation_para}")
@@ -271,8 +276,6 @@ def normal_calculation(equation_para):
     else:
         return postfix
 
-        
-    
 count_repeat=0
 def find_x(x_para):
     start = time.perf_counter()  # Lấy thời gian bắt đầu
@@ -284,14 +287,12 @@ def find_x(x_para):
         # print(f"func nor= {func_x_nor}")
         result_func_x_nor = normal_calculation(func_x_nor)
         if result_func_x_nor == "Error":
-            # print("func nor error")
-            return "MATH Error"
+            return "MATH Error1" #Change to MATH Error 
         # print(f"ket qua tinh nor= {result_func_x_nor} -------------------------")
 
         result_func_x_deri = derivative_calculation(x_para)
         if result_func_x_deri == "MATH Error" or abs(result_func_x_deri) < 1e-9:
-            # print("func deri error")
-            return "MATH Error"
+            return "MATH Error2" #Change to MATH Error 
 
         result = x_para - (result_func_x_nor/result_func_x_deri)
         # print(f"sai so nghiem trc va sau: {abs(result-x_para)}")
@@ -388,6 +389,7 @@ def handle_button_press(row, column):
                 is_x_enter=False
                 return
             else:
+                print("calculation....")
                 if "=" in display_text:
                     syntax_error_display()
                 elif error_checking():
@@ -395,6 +397,7 @@ def handle_button_press(row, column):
                 else:
                     equation = []    
                     temp_text = check_x_syntax(display_text,False)
+                    print(f"temp_text= {temp_text}")
                     if(temp_text == "Syntax Error"):
                         return
                     else:
