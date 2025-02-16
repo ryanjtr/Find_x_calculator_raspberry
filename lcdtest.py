@@ -25,7 +25,7 @@ lcd = CharLCD('PCF8574', 0x27)
 lcd.cursor_mode = 'line'
 lcd.clear()
 
-display_text = "6x^8.5 - 3x^4.7 + 1"
+display_text = "x^6-100000x^3+99999999999"
 equation = []
 cursor_pos = 0  
 cursor_blink_pos=0
@@ -49,7 +49,6 @@ def slice_equation(display_text):
         equation.append(current)
     print(equation)
 
-
 def update_display():
     lcd.clear()
     if (cursor_pos<16 and len(display_text)<=16):
@@ -72,8 +71,6 @@ def syntax_error_display():
     lcd.cursor_pos = (0,0)
     lcd.write_string("Syntax ERROR")
     print("Syntax Error")
-
-
 
 
 #--------------------------- Shunting Yard Algorithm --------------------------#
@@ -111,6 +108,7 @@ def infix_to_postfix(expression):
     output = []
     stack = []
     i = 0
+    
     if "j" in expression:
         lcd.clear()
         lcd.cursor_pos = (0, 0)
@@ -212,12 +210,6 @@ def derivative_calculation(x_para):
     cofficient_h=1e-2
     func_xh = [expr.replace("x", str(x_para+cofficient_h)) for expr in func_xh]
     func_x = [expr.replace("x", str(x_para-cofficient_h)) for expr in func_x]
-    # print(f"func_x: {func_x}")
-    # print(f"ket qua phep tinh func_xh: {normal_calculation(func_xh)} ")
-    # print(f"ket qua phep tinh func_x: {normal_calculation(func_x)} ")
-
-    # result_xh = normal_calculation(func_xh)
-    # print("tinh toan func_xh---------")
     cofficient_not_ok=True
     while(cofficient_not_ok):
         result_xh = normal_calculation(func_xh)
@@ -225,7 +217,6 @@ def derivative_calculation(x_para):
             cofficient_h = cofficient_h / 10
         else:
             cofficient_not_ok=False
-    # print("tinh toan func_x ---------")
     result_x = normal_calculation(func_x)
     if result_xh == "Error" or result_x == "Error":
         result = "MATH ERROR"
@@ -264,8 +255,9 @@ def check_x_syntax(expression_text, is_finding_x):
 
 
 def normal_calculation(equation_para):
-    # print(f"equation_para= {equation_para}")
     expression = ''.join(equation_para)
+    if "e" in expression:
+        expression = expression.replace("e","*10^")
     postfix = infix_to_postfix(expression)
     if postfix != "Error":
         result = evaluate_postfix(postfix)
@@ -281,6 +273,7 @@ def find_x(x_para):
     start = time.perf_counter()  # Lấy thời gian bắt đầu
     global count_repeat
     SO_LAN_LAP=10000
+    recalculate=False
     for lanlap in range(SO_LAN_LAP):
         count_repeat+=1
         func_x_nor = [expr.replace("x", str(x_para)) for expr in equation]
@@ -288,30 +281,36 @@ def find_x(x_para):
         result_func_x_nor = normal_calculation(func_x_nor)
         if result_func_x_nor == "Error":
             return "MATH Error1" #Change to MATH Error 
-        # print(f"ket qua tinh nor= {result_func_x_nor} -------------------------")
+        print(f"ket qua tinh nor= {result_func_x_nor} -------------------------")
 
         result_func_x_deri = derivative_calculation(x_para)
-        if result_func_x_deri == "MATH Error" or abs(result_func_x_deri) < 1e-9:
+        if result_func_x_deri == "MATH Error":
             return "MATH Error2" #Change to MATH Error 
-
-        result = x_para - (result_func_x_nor/result_func_x_deri)
+        if(result_func_x_deri==0 or abs(result_func_x_deri) < 1e-9):
+            x_para+=2
+            recalculate=True
+        
+        print(f"ket qua tinh deri= {result_func_x_deri} -------------------------")
+        if(not recalculate):
+            result = x_para - (result_func_x_nor/result_func_x_deri)
         # print(f"sai so nghiem trc va sau: {abs(result-x_para)}")
-        if(abs(result-x_para)<1e-5):
-            func_x_nor = [expr.replace("x", str(result)) for expr in equation]
-            left_side = normal_calculation(func_x_nor)
-            if(left_side=="Error"):
-                return "Cannot Solve" 
-            
-            if(abs(left_side)<1e-15 or (result-x_para==0)):
-                end = time.perf_counter()  # Lấy thời gian kết thúc
-                print(f"left side= {left_side}")
-                print(f"ket qua co the dung:{result}")
-                print(f"Thời gian thực thi: {end - start:.6f} giây")
-                return result  
-            else:
-                if(lanlap==SO_LAN_LAP):
-                    return "Cannot Solve"          
-        x_para=result
+            if(abs(result-x_para)<1e-5):
+                func_x_nor = [expr.replace("x", str(result)) for expr in equation]
+                left_side = normal_calculation(func_x_nor)
+                if(left_side=="Error"):
+                    return "Cannot Solve" 
+                
+                if(abs(left_side)<1e-15 or (result-x_para==0)):
+                    end = time.perf_counter()  # Lấy thời gian kết thúc
+                    print(f"left side= {left_side}")
+                    print(f"ket qua co the dung:{result}")
+                    print(f"Thời gian thực thi: {end - start:.6f} giây")
+                    return result  
+                else:
+                    if(lanlap==SO_LAN_LAP):
+                        return "Cannot Solve"          
+            x_para=result
+        recalculate=False
     return "Cannot Solve"
 
 def error_checking():
