@@ -25,7 +25,7 @@ lcd = CharLCD('PCF8574', 0x27)
 lcd.cursor_mode = 'line'
 lcd.clear()
 
-display_text = ""
+display_text = "7.1x^200.5-5.6x^120.2+3.8x^50.1-9.2"
 equation = []
 cursor_pos = 0  
 cursor_blink_pos=0
@@ -63,7 +63,7 @@ def update_display():
     if is_x_enter:
         lcd.cursor_pos = (1,0)
         lcd.write_string("x="+initial_x[:cursor_pos_line_2])
-    print("update display")
+    print(f"update display: {display_text}")
 
 def syntax_error_display():
     global equation
@@ -266,9 +266,11 @@ def normal_calculation(equation_para):
 
         
     
-
+count_repeat=0
 def find_x(x_para):
-    for lanlap in range(20):
+    global count_repeat
+    for lanlap in range(1000):
+        count_repeat+=1
         func_x_nor = equation.copy()
         func_x_nor = [expr.replace("x", str(x_para)) for expr in func_x_nor]
         print(f"func nor= {func_x_nor}")
@@ -279,12 +281,21 @@ def find_x(x_para):
 
         result_func_x_deri = derivative_calculation(x_para)
         if result_func_x_deri == "MATH Error" or abs(result_func_x_deri) < 1e-9:
-            print("Derivative too small")
-            return "Error"
+            return "MATH Error"
 
         result = x_para - (result_func_x_nor/result_func_x_deri)
         if(abs(result-x_para)<(2/100)):
-            return result
+            print(f"ket qua co the dung:{result}")
+            func_x_nor = equation.copy()
+            func_x_nor = [expr.replace("x", str(result)) for expr in func_x_nor]
+            #Replace x to function nor to verify if it = 0
+            print(f"func nor after replace x with result: {func_x_nor}")
+            left_side = normal_calculation(func_x_nor)
+            print(f"left side= {left_side}")
+            if(left_side<5/10 or left_side> -2):
+                return result  # Converged
+            else:
+                return "Cannot Solve"          
         x_para=result
     return "Cannot Solve"
 
@@ -383,6 +394,7 @@ def handle_button_press(row, column):
                 return
 
         elif pressed_button == "Solve":
+            subprocess.run('clear', shell=True) # Delete this line after debugging
             equation = []    
             temp_text = check_x_syntax(display_text,True)
             if(temp_text == "Syntax Error"):
@@ -398,13 +410,17 @@ def handle_button_press(row, column):
                 while(is_x_enter):
                     scan_keypad()
                 result = find_x(float(initial_x)) # Take result
-                if result == "Error" or result == "Cannot Solve":
+                if result == "Error" or result == "Cannot Solve" or result == "MATH Error":
                     lcd.clear()
                     lcd.cursor_pos = (0, 0)
-                else: 
+                else:
+                    print(f"type result: {type(result)}")
+                    initial_x=str(result)
                     lcd.cursor_pos = (1, 0) 
                 lcd.write_string(f"{result}")
                 print(f"ket qua cuoi cung= {result}")
+                print(f"phep tinh: {display_text}")
+                print(f"So lan lap: {count_repeat}")
             else:
                 syntax_error_display()
             return
