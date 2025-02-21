@@ -252,7 +252,6 @@ def check_x_syntax(expression_text, is_finding_x):
         if char == 'x':
             if i < length - 1 and expression_text[i + 1].isdigit():
                 syntax_error_display()
-                print("outrange error")
                 return "Syntax Error"
 
             # Xử lý các trường hợp trước "x"
