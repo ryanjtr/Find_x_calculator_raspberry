@@ -25,15 +25,20 @@ lcd = CharLCD('PCF8574', 0x27)
 lcd.cursor_mode = 'line'
 lcd.clear()
 
-display_text = "x^6-100000x^3+99999999999"
+display_text = "2.3x^300.9-6.7x^180.4+4.1x^90.2-8.5x^45.1+10"
 equation = []
 cursor_pos = 0  
 cursor_blink_pos=0
 is_shift_left_pressed=0
 initial_x= '0'
+
 is_in_solving = False
 is_x_enter = False
 cursor_pos_line_2 = 0
+cursor_blink_pos_2=0
+is_displaying_ans_x=False
+last_result=0
+
 def slice_equation(display_text):
     global equation
     current = ""
@@ -51,6 +56,7 @@ def slice_equation(display_text):
 
 def update_display():
     lcd.clear()
+    lcd.cursor_pos=(0,0)
     if (cursor_pos<16 and len(display_text)<=16):
         lcd.write_string(display_text[:len(display_text)]) 
     else:
@@ -62,6 +68,16 @@ def update_display():
     if is_x_enter:
         lcd.cursor_pos = (1,0)
         lcd.write_string("x="+initial_x[:cursor_pos_line_2])
+    if is_displaying_ans_x:
+        lcd.cursor_pos=(1,0)
+        if (cursor_pos_line_2<16 and len(last_result)<=16):
+            lcd.write_string(last_result[:len(last_result)]) 
+        else:
+            if(cursor_pos_line_2>16):
+                lcd.write_string(last_result[cursor_pos_line_2-16:cursor_pos_line_2])
+            else:
+                lcd.write_string(last_result[0:16])
+        lcd.cursor_pos=(1,cursor_blink_pos_2)
     print(f"update display: {display_text}")
 
 def syntax_error_display():
@@ -201,17 +217,14 @@ def evaluate_postfix(postfix):
 
 #----------Function for calculating the derivative---------------#
 
-DEMO_X = 0
 
 def derivative_calculation(x_para):
     global equation
-    func_xh = equation.copy()
-    func_x = equation.copy()
-    cofficient_h=1e-2
-    func_xh = [expr.replace("x", str(x_para+cofficient_h)) for expr in func_xh]
-    func_x = [expr.replace("x", str(x_para-cofficient_h)) for expr in func_x]
+    cofficient_h=1e-9
+    func_x = [expr.replace("x", str(x_para-cofficient_h)) for expr in equation]
     cofficient_not_ok=True
     while(cofficient_not_ok):
+        func_xh = [expr.replace("x", str(x_para+cofficient_h)) for expr in equation]
         result_xh = normal_calculation(func_xh)
         if(result_xh == None):
             cofficient_h = cofficient_h / 10
@@ -277,23 +290,20 @@ def find_x(x_para):
     for lanlap in range(SO_LAN_LAP):
         count_repeat+=1
         func_x_nor = [expr.replace("x", str(x_para)) for expr in equation]
-        # print(f"func nor= {func_x_nor}")
         result_func_x_nor = normal_calculation(func_x_nor)
         if result_func_x_nor == "Error":
-            return "MATH Error1" #Change to MATH Error 
-        print(f"ket qua tinh nor= {result_func_x_nor} -------------------------")
-
+            return "MATH Error" #Change to MATH Error 
+        if result_func_x_nor == 0 and x_para == 0:
+            return x_para
         result_func_x_deri = derivative_calculation(x_para)
         if result_func_x_deri == "MATH Error":
-            return "MATH Error2" #Change to MATH Error 
+            return "MATH Error" #Change to MATH Error 
         if(result_func_x_deri==0 or abs(result_func_x_deri) < 1e-9):
             x_para+=2
             recalculate=True
-        
-        print(f"ket qua tinh deri= {result_func_x_deri} -------------------------")
+
         if(not recalculate):
             result = x_para - (result_func_x_nor/result_func_x_deri)
-        # print(f"sai so nghiem trc va sau: {abs(result-x_para)}")
             if(abs(result-x_para)<1e-5):
                 func_x_nor = [expr.replace("x", str(result)) for expr in equation]
                 left_side = normal_calculation(func_x_nor)
@@ -313,38 +323,15 @@ def find_x(x_para):
         recalculate=False
     return "Cannot Solve"
 
-def error_checking():
-    global display_text
-    is_error = False
-    if "*/" in display_text or "/*" in display_text or "+*" in display_text or "-*" in display_text or "+/" in display_text or "-/" in display_text or "**" in display_text or "//" in display_text:
-        is_error = True
-        print("loi dau")
-    elif display_text.count(")") != display_text.count("("):
-        is_error = True
-        print("Loi thieu ngoac")
-    elif "()" in display_text:
-        is_error = True
-        print("Loi trong ngoac khong co gi")
-    elif "-)" in display_text or "+)" in display_text or "*)" in display_text or "/)" in display_text or "(*" in display_text or "(/)" in display_text:
-        is_error = True
-        print("Loi chi co dau trong ngoac")
-    return is_error
  
-
-
-
-
 def handle_button_press(row, column):
     global display_text, cursor_pos,cursor_blink_pos,is_shift_left_pressed,equation
-    global initial_x,is_x_enter,cursor_pos_line_2
+    global initial_x,is_x_enter,cursor_pos_line_2,cursor_blink_pos_2,last_result,is_displaying_ans_x
     current_time = time.time() 
-    if (current_time - last_pressed_time[row][column] > 0.2):  # Debounce 300ms
+    if (current_time - last_pressed_time[row][column] > 0.2):  # Debounce 200ms
         last_pressed_time[row][column] = current_time
         pressed_button = keypad[row][column]
-        # print(f"Button pressed: {pressed_button}")
-        # print(f"chieu dai chuoi truoc xu li {len(display_text)}")
-        # print(f"vi tri cur {cursor_pos}")
-        # print(f"vi tri nhay truoc xu li {cursor_blink_pos}")
+        
         if (pressed_button == "Del"): #Delete character before blinking cursor
             if (cursor_blink_pos>0 and cursor_pos <=16):
                 display_text = display_text[:cursor_blink_pos-1] + display_text[cursor_blink_pos:]
@@ -356,17 +343,28 @@ def handle_button_press(row, column):
                 display_text = display_text[cursor_pos-16:cursor_pos]
 
         elif pressed_button == "Shift left":
-            if  (cursor_blink_pos!=0 and cursor_pos <=16):
-                cursor_blink_pos-=1
-                lcd.cursor_pos=(0,cursor_blink_pos)
-                is_shift_left_pressed=1
-                cursor_pos-=1
-                # print(f"{display_text}")
-                return
+            if is_displaying_ans_x:
+                if  cursor_pos_line_2>15:
+                    cursor_pos_line_2-=1
+                else:
+                    return
             else:
-                cursor_pos-=1
+                if  (cursor_blink_pos!=0 and cursor_pos <=16):
+                    cursor_blink_pos-=1
+                    lcd.cursor_pos=(0,cursor_blink_pos)
+                    is_shift_left_pressed=1
+                    cursor_pos-=1
+                    return
+                else:
+                    cursor_pos-=1
                 
         elif pressed_button == "Shift right":
+            if is_displaying_ans_x:
+                if len(last_result)<15:
+                    return
+                elif cursor_pos_line_2 < len(last_result):
+                    cursor_pos_line_2+=1
+            else:
                 if(cursor_blink_pos<15 and cursor_blink_pos<cursor_pos):
                     cursor_blink_pos+=1
                     lcd.cursor_blink_pos=(0,cursor_blink_pos)
@@ -378,68 +376,84 @@ def handle_button_press(row, column):
             cursor_blink_pos=0
             subprocess.run('clear', shell=True) # Delete this line after debugging
             is_x_enter=False
+            is_displaying_ans_x=False
             lcd.clear()
             return
+
         elif pressed_button == "Return":
             lcd.clear()
             is_x_enter = False
+            is_displaying_ans_x=False
+
         elif pressed_button == "Calculate":
             if is_x_enter:
                 is_x_enter=False
                 return
             else:
                 print("calculation....")
-                if "=" in display_text:
-                    syntax_error_display()
-                elif error_checking():
-                    syntax_error_display()
+                equation = []    
+                temp_text = check_x_syntax(display_text,False)
+                print(f"temp_text= {temp_text}")
+                if(temp_text == "Syntax Error"):
+                    return
                 else:
-                    equation = []    
-                    temp_text = check_x_syntax(display_text,False)
-                    print(f"temp_text= {temp_text}")
-                    if(temp_text == "Syntax Error"):
-                        return
+                    slice_equation(temp_text) # Generate equation after slicing
+                    last_result = normal_calculation(equation) # Take result
+                    lcd.cursor_pos = (1, 0)
+                    last_result=str(last_result)
+                    # lcd.write_string(f"{last_result}")
+                    print(f"last result= {last_result}")
+                    if len(last_result)>15:
+                        cursor_pos_line_2=16
+                        cursor_blink_pos_2=15
                     else:
-                        slice_equation(temp_text) # Generate equation after slicing
-                        result = normal_calculation(equation) # Take result
-                        lcd.cursor_pos = (1, 0)
-                        lcd.write_string(f"{result}")
-                        print(f"{result}")
-                    # Thiếu xử lí nếu số ra vượt 16 kí tự: 1.152921504606847e+18, thay e+18 thành *10^18.
-                    # Sử dụng nút qua trái/phải để xem kết quả
-                return
+                        cursor_pos_line_2=len(last_result)
+                        cursor_blink_pos_2=cursor_pos_line_2
+                    if "e" in last_result:
+                        last_result=last_result.replace("e","*10^")
 
         elif pressed_button == "Solve":
-            subprocess.run('clear', shell=True) # Delete this line after debugging
-            equation = []    
-            temp_text = check_x_syntax(display_text,True)
-            if(temp_text == "Syntax Error"):
-                return
-            else:
-                slice_equation(temp_text) # Generate equation after slicing
-            if "x" in temp_text : #thiếu trường hợp nếu không gõ = thì mặc định tìm x với vế phải bằng 0
-                lcd.cursor_pos = (1,0)
-                lcd.write_string("x=")
-                is_in_solving = True
-                initial_x = ''
-                is_x_enter = True
-                while(is_x_enter):
-                    scan_keypad()
-                result = find_x(float(initial_x)) # Take result
-                if result == "Error" or result == "Cannot Solve" or result == "MATH Error":
-                    lcd.clear()
-                    lcd.cursor_pos = (0, 0)
+            if not is_displaying_ans_x:
+                subprocess.run('clear', shell=True) # Delete this line after debugging
+                equation = []    
+                temp_text = check_x_syntax(display_text,True)
+                print(f"temp text: {temp_text}")
+                if(temp_text == "Syntax Error"):
+                    return
                 else:
-                    print(f"type result: {type(result)}")
-                    initial_x=str(result)
-                    lcd.cursor_pos = (1, 0) 
-                lcd.write_string(f"{result}")
-                print(f"ket qua cuoi cung= {result}")
-                print(f"phep tinh: {display_text}")
-                print(f"So lan lap: {count_repeat}")
-            else:
-                syntax_error_display()
-            return
+                    if "=" in temp_text:
+                        position=temp_text.index("=")
+                        temp_text = temp_text[:position] + "-(" + temp_text[position+1:]+")"
+                    slice_equation(temp_text) # Generate equation after slicing
+                if "x" in temp_text :
+                    lcd.cursor_pos = (1,0)
+                    lcd.write_string("x=")
+                    is_in_solving = True
+                    initial_x = ''
+                    is_x_enter = True
+                    while(is_x_enter):
+                        scan_keypad()
+                    last_result = find_x(float(initial_x)) # Take result
+                    if last_result == "Error" or last_result == "Cannot Solve" or last_result == "MATH Error":
+                        lcd.clear()
+                        lcd.cursor_pos = (0, 0)
+                    else:
+                        is_displaying_ans_x=True
+                        last_result=str(last_result)
+                        initial_x=last_result
+                    if len(last_result)>15:
+                        cursor_pos_line_2=16
+                        cursor_blink_pos_2=15
+                    else:
+                        cursor_pos_line_2=len(last_result)
+                        cursor_blink_pos_2=cursor_pos_line_2
+                    if "e" in last_result:
+                        last_result=last_result.replace("e","*10^")
+                    print(f"ket qua cuoi cung= {last_result}")
+                    print(f"phep tinh: {display_text}")
+                    print(f"So lan lap: {count_repeat}")
+                else:
+                    syntax_error_display()
  
         else:
             # Add character
@@ -459,10 +473,6 @@ def handle_button_press(row, column):
         
         # Update LCD display
         update_display()
-        # print(f"{display_text}")
-        # print(f"chieu dai chuoi sau xu li {len(display_text)}")
-        # print(f"vi tri con tro sau xu li {cursor_pos}")
-        # print(f"vi tri nhay sau xu li {cursor_blink_pos}")
 
 def scan_keypad():
     for row in range(8):
