@@ -1,4 +1,4 @@
-#When using this version, avoid set inital x to zero
+# This version verify initial x, if initial x cause MATH ERROR while using apply_op function, then it will be plus 0.1
 
 
 from RPLCD.i2c import CharLCD
@@ -42,22 +42,29 @@ cursor_blink_pos_2=0
 is_displaying_ans_x=False
 last_result=0
 
+change_initial_x_flag=False
+
 def slice_equation(display_text):
     global equation
+    equation.clear()  # Xóa danh sách trước khi thêm mới
     current = ""
+
     for char in display_text:
-        if char in "+-*/()=^x":  
-            if current:  # Thêm số đang xử lý vào danh sách
+        if char in "+-*/()=^x":
+            if current:
                 equation.append(current)
                 current = ""
-            equation.append(char)  # Thêm toán tử hoặc dấu ngoặc
-        elif char.isdigit() or char == '.':  # Nếu là số hoặc dấu chấm
-            current += char
-    if current:  # Thêm số cuối cùng
+            equation.append(char)
+        else:
+            current += char  # Nếu là số hoặc dấu chấm, tiếp tục ghép vào
+    if current:
         equation.append(current)
+
     print(equation)
 
+
 def update_display():
+    global count_repeat
     lcd.clear()
     lcd.cursor_pos=(0,0)
     if (cursor_pos<16 and len(display_text)<=16):
@@ -81,6 +88,7 @@ def update_display():
             else:
                 lcd.write_string(last_result[0:16])
         lcd.cursor_pos=(1,cursor_blink_pos_2)
+        count_repeat=0
     print(f"update display: {display_text}")
 
 def syntax_error_display():
@@ -104,7 +112,8 @@ def precedence(op):
     return 0
 
 def apply_op(a, b, op):
-
+    # print(f"a: {a}")
+    # print(f"b: {b}")
     if op == '+': return a + b
     if op == '-': return a - b
     if op == '*': return a * b
@@ -120,37 +129,31 @@ def apply_op(a, b, op):
         except:
             return "MATH ERROR"
 
+
 def is_operator(token):
     return token in ['+', '-', '*', '/', '^']
 
 def infix_to_postfix(expression):
-    output = []
-    stack = []
-    i = 0
-    
+    output, stack = [], []
+    i, n = 0, len(expression)
+
     if "j" in expression:
         lcd.clear()
         lcd.cursor_pos = (0, 0)
         lcd.write_string("Complex number")
         return "Error"
-    while i < len(expression):
-        token = expression[i]
-        # Xử lý số âm hoặc dương khi có dấu trước số
-        if token in ('+', '-') and (i == 0 or expression[i-1] in '*/(+ -^'):
-            num = token
-            i += 1
-            while i < len(expression) and (expression[i].isdigit() or expression[i] == '.'):
-                num += expression[i]
-                i += 1
-            output.append(num)
-            continue
 
-        if token.isdigit() or token == '.':
+    while i < n:
+        token = expression[i]
+
+        # Xử lý số (kể cả số âm)
+        if token.isdigit() or token == '.' or (token in "+-" and (i == 0 or expression[i - 1] in "*/(^")):
             num = token
-            while i + 1 < len(expression) and (expression[i + 1].isdigit() or expression[i + 1] == '.'):
+            while i + 1 < n and (expression[i + 1].isdigit() or expression[i + 1] == '.'):
                 i += 1
                 num += expression[i]
             output.append(num)
+
         elif token == '(':
             stack.append(token)
         elif token == ')':
@@ -162,7 +165,6 @@ def infix_to_postfix(expression):
                 output.append(stack.pop())
             stack.append(token)
         else:
-            print(f"token: {token}")
             lcd.clear()
             lcd.cursor_pos = (0, 0)
             lcd.write_string("Invalid Input infix")
@@ -175,72 +177,59 @@ def infix_to_postfix(expression):
 
     return output
 
+
 def evaluate_postfix(postfix):
+    global change_initial_x_flag
     stack = []
 
     for token in postfix:
-        
         if token.lstrip('+-').replace('.', '', 1).isdigit():
             stack.append(float(token))
         elif is_operator(token):
             if len(stack) < 2:
                 lcd.clear()
                 lcd.cursor_pos = (0, 0)
-                lcd.write_string("Syntax Error POSTFIX") #Rename to Syntax Error after code complete
-                print("len stack < 2")
+                lcd.write_string("Syntax Error POSTFIX")
                 return "Error"
-            b = stack.pop()
-            a = stack.pop()
-            
+            b, a = stack.pop(), stack.pop()
+            if a == "MATH ERROR" or b == "MATH ERROR":
+                return "Change initial x"
             result = apply_op(a, b, token)
-            # print(f"result line 172: {result}")
-            if result == "MATH ERROR":
-                print("MATh error in evaluate postfix")
+            if result == "Math Error":
                 return "Error"
-            else:
-                stack.append(result)
+            stack.append(result)
         else:
-            
             lcd.clear()
             lcd.cursor_pos = (0, 0)
             lcd.write_string("Invalid Input evalute")
-            print("invalid input")
             return "Error"
 
-    if len(stack) != 1:
-        lcd.clear()
-        lcd.cursor_pos = (0, 0)
-        lcd.write_string("Syntax Error len stack") #Rename to Syntax Error after code complete
-        print("Syntax Error len stack")
-        return "Error"
-    return stack[0]
-
-
-#-----------------------------------------------------------------------------------#
-
-#----------Function for calculating the derivative---------------#
+    return stack[0] if len(stack) == 1 else "Error"
 
 
 def derivative_calculation(x_para):
     global equation
-    cofficient_h=1e-9
-    func_x = [expr.replace("x", str(x_para-cofficient_h)) for expr in equation]
-    cofficient_not_ok=True
-    while(cofficient_not_ok):
-        func_xh = [expr.replace("x", str(x_para+cofficient_h)) for expr in equation]
-        result_xh = normal_calculation(func_xh)
-        if(result_xh == None):
-            cofficient_h = cofficient_h / 10
-        else:
-            cofficient_not_ok=False
-    result_x = normal_calculation(func_x)
-    if result_xh == "Error" or result_x == "Error":
-        result = "MATH ERROR"
-    else:
-        result = ( result_xh - result_x)/(2*cofficient_h)
-    return result
+    cofficient_h = 1e-9
+    is_ok=False
     
-#---------------------------------------------------------------------------------#
+    while True:
+        func_xh = [expr.replace("x", str(x_para + cofficient_h)) for expr in equation]
+        result_xh = normal_calculation(func_xh)
+        if result_xh == "Change initial x":
+            x_para+=0.1
+            continue
+        if result_xh is not None:
+            break
+        cofficient_h /= 10
+    while not is_ok:
+        func_x = [expr.replace("x", str(x_para - cofficient_h)) for expr in equation]
+        result_x = normal_calculation(func_x)
+        if result_x == "Change initial x":
+            x_para+=0.1
+        else:
+            is_ok=True
+    return (result_xh - result_x) / (2 * cofficient_h) if result_xh != "Error" and result_x != "Error" else "Math Error"
+
 
 def check_x_syntax(expression_text, is_finding_x):
     global initial_x
@@ -276,7 +265,7 @@ def normal_calculation(equation_para):
     postfix = infix_to_postfix(expression)
     if postfix != "Error":
         result = evaluate_postfix(postfix)
-        if result != "Error":
+        if result != "Error" and result != "Change initial x":
             if result == 0.0: # eliminate negative -0.0
                 result = 0.0
         return result
@@ -294,7 +283,10 @@ def find_x(x_para):
         func_x_nor = [expr.replace("x", str(x_para)) for expr in equation]
         result_func_x_nor = normal_calculation(func_x_nor)
         if result_func_x_nor == "Error":
-            return "MATH Error" #Change to MATH Error 
+            return "MATH Error" #Change to MATH Error
+        if result_func_x_nor == "Change initial x":
+            x_para+=0.1
+            continue
         if result_func_x_nor == 0 and x_para == 0:
             return x_para
         result_func_x_deri = derivative_calculation(x_para)
@@ -309,6 +301,9 @@ def find_x(x_para):
             if(abs(result-x_para)<1e-5):
                 func_x_nor = [expr.replace("x", str(result)) for expr in equation]
                 left_side = normal_calculation(func_x_nor)
+                if left_side == "Change initial x":
+                    x_para+=0.1
+                    continue
                 if(left_side=="Error"):
                     return "Cannot Solve" 
                 
