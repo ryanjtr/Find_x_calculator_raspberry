@@ -2,14 +2,13 @@
 # Imrpove "return button" process
 # Have secret shutdown 
 # Have horse animation
+# Process exp e -> *10^
 
 import horse_animation 
-
 from RPLCD.i2c import CharLCD
 import time
 from gpiozero import LED, Button
-
-import subprocess # Delete this line after debugging
+import subprocess
 
 
 r0 = LED(24)
@@ -347,7 +346,22 @@ def syntax_error_display():
     lcd.write_string("Syntax ERROR")
     print("Syntax Error")
 
- 
+def math_error_display():
+    global equation
+    equation = [] #Reset equation
+    lcd.clear()
+    lcd.cursor_pos = (0,0)
+    lcd.write_string("Math ERROR")
+    print("Math Error")
+
+def process_exp(result):
+    if "e+" in result:
+        result=result.replace("e+","*10^")
+    elif "e-" in result:
+        result=result.replace("e","*10^")
+    return result
+
+
 def handle_button_press(row, column):
     global display_text, cursor_pos,cursor_blink_pos,equation
     global is_return_pressed,is_secure_pressed,is_x_enter,is_displaying_ans_x,is_shift_left_pressed
@@ -408,9 +422,6 @@ def handle_button_press(row, column):
                 lcd.cursor = (0,0)
                 lcd.write_string("GOODBYE.....")
                 subprocess.run('sudo poweroff', shell=True) # Delete this linsube after debugging
-            
-            
-
             display_text = ""
             cursor_pos = 0
             cursor_blink_pos=0
@@ -448,14 +459,16 @@ def handle_button_press(row, column):
                     lcd.cursor_pos = (1, 0)
                     last_result=str(last_result)
                     print(f"last result= {last_result}")
+                    if last_result == "MATH ERROR":
+                        math_error_display()
+                        return 
                     if len(last_result)>15:
                         cursor_pos_line_2=16
                         cursor_blink_pos_2=15
                     else:
                         cursor_pos_line_2=len(last_result)
                         cursor_blink_pos_2=cursor_pos_line_2
-                    if "e" in last_result:
-                        last_result=last_result.replace("e","*10^")
+                    last_result = process_exp(last_result)
                     is_displaying_ans_x=True
 
         elif pressed_button == "Solve":
@@ -503,8 +516,7 @@ def handle_button_press(row, column):
                         else:
                             cursor_pos_line_2=len(last_result)
                             cursor_blink_pos_2=cursor_pos_line_2
-                        if "e" in last_result:
-                            last_result=last_result.replace("e","*10^")
+                        last_result = process_exp(last_result)
                         print(f"ket qua cuoi cung= {last_result}")
                         print(f"So lan lap: {count_repeat}")
                     else:
