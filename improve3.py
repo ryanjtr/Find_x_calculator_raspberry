@@ -1,5 +1,9 @@
 # This version verify initial x, if initial x cause MATH ERROR while using apply_op function, then it will be plus 0.1
+# Imrpove "return button" process
+# Have secret shutdown 
+# Have horse animation
 
+import horse_animation 
 
 from RPLCD.i2c import CharLCD
 import time
@@ -18,7 +22,7 @@ c2 = Button(7)
 c3 = Button(1)
 
 keypad = [["=", "x", 7,"("], ["Shift right", "Del", 9,"Return"], ["Shift left", "^", 8,")"],
-          ["Solve", "AC", "+","null"], [4, "1", 0], [5, 2, "."],
+          ["Solve", "AC", "+","Secure"], [4, "1", 0], [5, 2, "."],
           [6, 3, "Calculate"], ["-", "*", "/"]]
 
 last_pressed_time = [[0, 0, 0,0] for _ in range(8)]
@@ -28,7 +32,7 @@ lcd = CharLCD('PCF8574', 0x27)
 lcd.cursor_mode = 'line'
 lcd.clear()
 
-display_text = "x^10000*0+x^2-1=0"
+display_text = "6.3x^900.1-4.9x^-400.7+7.8x^250.3-5.6x^-125.5+3.2x^60.9-1.1"
 equation = []
 cursor_pos = 0  
 cursor_blink_pos=0
@@ -41,8 +45,8 @@ cursor_pos_line_2 = 0
 cursor_blink_pos_2=0
 is_displaying_ans_x=False
 last_result=0
-
-change_initial_x_flag=False
+is_return_pressed=False
+is_secure_pressed=False
 
 def slice_equation(display_text):
     global equation
@@ -179,7 +183,6 @@ def infix_to_postfix(expression):
 
 
 def evaluate_postfix(postfix):
-    global change_initial_x_flag
     stack = []
 
     for token in postfix:
@@ -319,16 +322,43 @@ def find_x(x_para):
         recalculate=False
     return "Cannot Solve"
 
+def error_checking():
+    global display_text
+    is_error = False
+    if "*/" in display_text or "/*" in display_text or "+*" in display_text or "-*" in display_text or "+/" in display_text or "-/" in display_text or "**" in display_text or "//" in display_text:
+        is_error = True
+        print("loi dau")
+    elif display_text.count(")") != display_text.count("("):
+        is_error = True
+        print("Loi thieu ngoac")
+    elif "()" in display_text:
+        is_error = True
+        print("Loi trong ngoac khong co gi")
+    elif "-)" in display_text or "+)" in display_text or "*)" in display_text or "/)" in display_text or "(*" in display_text or "(/)" in display_text:
+        is_error = True
+        print("Loi chi co dau trong ngoac")
+    return is_error
+
+def syntax_error_display():
+    global equation
+    equation = [] #Reset equation
+    lcd.clear()
+    lcd.cursor_pos = (0,0)
+    lcd.write_string("Syntax ERROR")
+    print("Syntax Error")
+
  
 def handle_button_press(row, column):
-    global display_text, cursor_pos,cursor_blink_pos,is_shift_left_pressed,equation
-    global initial_x,is_x_enter,cursor_pos_line_2,cursor_blink_pos_2,last_result,is_displaying_ans_x,count_repeat
+    global display_text, cursor_pos,cursor_blink_pos,equation
+    global is_return_pressed,is_secure_pressed,is_x_enter,is_displaying_ans_x,is_shift_left_pressed
+    global initial_x,cursor_pos_line_2,cursor_blink_pos_2,last_result,count_repeat
     current_time = time.time() 
     if (current_time - last_pressed_time[row][column] > 0.2):  # Debounce 200ms
         last_pressed_time[row][column] = current_time
         pressed_button = keypad[row][column]
         
         if (pressed_button == "Del"): #Delete character before blinking cursor
+            is_secure_pressed=False
             if (cursor_blink_pos>0 and cursor_pos <=16):
                 display_text = display_text[:cursor_blink_pos-1] + display_text[cursor_blink_pos:]
                 if(not is_shift_left_pressed):
@@ -339,6 +369,7 @@ def handle_button_press(row, column):
                 display_text = display_text[cursor_pos-16:cursor_pos]
 
         elif pressed_button == "Shift left":
+            is_secure_pressed=False
             if is_displaying_ans_x:
                 if  cursor_pos_line_2>15:
                     cursor_pos_line_2-=1
@@ -355,6 +386,7 @@ def handle_button_press(row, column):
                     cursor_pos-=1
                 
         elif pressed_button == "Shift right":
+            is_secure_pressed=False
             if is_displaying_ans_x:
                 if len(last_result)<15:
                     return
@@ -365,25 +397,43 @@ def handle_button_press(row, column):
                     cursor_blink_pos+=1
                     lcd.cursor_blink_pos=(0,cursor_blink_pos)
                 cursor_pos+=1
-
+        elif pressed_button == "Secure":
+            is_secure_pressed=True
         elif pressed_button == "AC":
+            lcd.clear()
+            if is_secure_pressed:   
+                lcd.cursor_mode = 'hide'
+                horse_animation.horse_animation()        
+                lcd.clear()
+                lcd.cursor = (0,0)
+                lcd.write_string("GOODBYE.....")
+                subprocess.run('sudo poweroff', shell=True) # Delete this linsube after debugging
+            
+            
+
             display_text = ""
             cursor_pos = 0
             cursor_blink_pos=0
             subprocess.run('clear', shell=True) # Delete this line after debugging
             is_x_enter=False
             is_displaying_ans_x=False
-            lcd.clear()
             return
 
         elif pressed_button == "Return":
+            is_secure_pressed=False
             lcd.clear()
+            if is_x_enter:
+                is_return_pressed=True
             is_x_enter = False
             is_displaying_ans_x=False
-
+            
         elif pressed_button == "Calculate":
+            is_secure_pressed=False
             if is_x_enter:
                 is_x_enter=False
+                return
+            elif error_checking():
+                syntax_error_display()
                 return
             else:
                 print("calculation....")
@@ -409,8 +459,13 @@ def handle_button_press(row, column):
                     is_displaying_ans_x=True
 
         elif pressed_button == "Solve":
+            is_secure_pressed=False
+            if error_checking():          
+                syntax_error_display()
+                return
+
             if not is_displaying_ans_x:
-                subprocess.run('clear', shell=True) # Delete this line after debugging
+                subprocess.run('clear', shell=True) # Delete this linsube after debugging
                 equation = []    
                 temp_text = check_x_syntax(display_text,True)
                 print(f"temp text: {temp_text}")
@@ -429,31 +484,36 @@ def handle_button_press(row, column):
                     is_x_enter = True
                     while(is_x_enter):
                         scan_keypad()
-                    last_result = find_x(float(initial_x)) # Take result
-                    if last_result == "Error" or last_result == "Cannot Solve" or last_result == "MATH Error":
-                        lcd.clear()
-                        lcd.cursor_pos = (0, 0)
-                        lcd.write_string(last_result)
-                        count_repeat=0
-                        return
+                
+                    if not is_return_pressed:
+                        last_result = find_x(float(initial_x)) # Take result
+                        if last_result == "Error" or last_result == "Cannot Solve" or last_result == "MATH Error":
+                            lcd.clear()
+                            lcd.cursor_pos = (0, 0)
+                            lcd.write_string(last_result)
+                            count_repeat=0
+                            return
+                        else:
+                            is_displaying_ans_x=True
+                            last_result=str(last_result)
+                            initial_x=last_result
+                        if len(last_result)>15:
+                            cursor_pos_line_2=16
+                            cursor_blink_pos_2=15
+                        else:
+                            cursor_pos_line_2=len(last_result)
+                            cursor_blink_pos_2=cursor_pos_line_2
+                        if "e" in last_result:
+                            last_result=last_result.replace("e","*10^")
+                        print(f"ket qua cuoi cung= {last_result}")
+                        print(f"So lan lap: {count_repeat}")
                     else:
-                        is_displaying_ans_x=True
-                        last_result=str(last_result)
-                        initial_x=last_result
-                    if len(last_result)>15:
-                        cursor_pos_line_2=16
-                        cursor_blink_pos_2=15
-                    else:
-                        cursor_pos_line_2=len(last_result)
-                        cursor_blink_pos_2=cursor_pos_line_2
-                    if "e" in last_result:
-                        last_result=last_result.replace("e","*10^")
-                    print(f"ket qua cuoi cung= {last_result}")
-                    print(f"So lan lap: {count_repeat}")
+                        is_return_pressed=False
+                       
                 else:
                     syntax_error_display()
- 
         else:
+            is_secure_pressed=False
             # Add character
             if  not is_x_enter:
                 if(cursor_pos<16):

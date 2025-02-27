@@ -28,7 +28,7 @@ lcd = CharLCD('PCF8574', 0x27)
 lcd.cursor_mode = 'line'
 lcd.clear()
 
-display_text = "6.3x^900.1-4.9x^-400.7+7.8x^250.3-5.6x^-125.5+3.2x^60.9-1.1"
+display_text = "x^10000*0+x^2-1=0"
 equation = []
 cursor_pos = 0  
 cursor_blink_pos=0
@@ -383,7 +383,7 @@ def handle_button_press(row, column):
 
         elif pressed_button == "Return":
             lcd.clear()
-            is_x_enter = False
+            is_x_enter = True
             is_displaying_ans_x=False
 
         elif pressed_button == "Calculate":
@@ -411,6 +411,7 @@ def handle_button_press(row, column):
                         cursor_blink_pos_2=cursor_pos_line_2
                     if "e" in last_result:
                         last_result=last_result.replace("e","*10^")
+                    is_displaying_ans_x=True
 
         elif pressed_button == "Solve":
             if not is_displaying_ans_x:
