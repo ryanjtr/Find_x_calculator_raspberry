@@ -60,6 +60,6 @@ def horse_animation():
                     lcd.cursor_pos = (1, xc)
                     lcd.write_string(chr(c+4))  # Display the lower part
             
-            time.sleep(0.3)  # Animation speed
+            time.sleep(0.01)  # Animation speed
             x += 1  # Move right
 

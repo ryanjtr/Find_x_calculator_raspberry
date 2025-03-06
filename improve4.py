@@ -1,10 +1,9 @@
-# This version verify initial x, if initial x cause MATH ERROR while using apply_op function, then it will be plus 0.1
+# This version verify initial x, if initial x cause Math Error while using apply_op function, then it will be plus 0.1
 # Imrpove "return button" process
 # Have secret shutdown 
 # Have horse animation
 # Process exp e -> *10^
 
-import horse_animation 
 from RPLCD.i2c import CharLCD
 import time
 from gpiozero import LED, Button
@@ -31,26 +30,25 @@ lcd = CharLCD('PCF8574', 0x27)
 lcd.cursor_mode = 'line'
 lcd.clear()
 
-display_text = "6.3x^900.1-4.9x^-400.7+7.8x^250.3-5.6x^-125.5+3.2x^60.9-1.1"
+display_text = "(x^14-3*x^12+7*x^9)-(5*x^8+2*x^6)+(4*x^5-11*x^3+6*x^2)-(20*x-50)"
+# display_text = "x^3-4x^2+x+6"
 equation = []
 cursor_pos = 0  
 cursor_blink_pos=0
 is_shift_left_pressed=0
-initial_x= '0'
+initial_x= 1
 
-is_in_solving = False
-is_x_enter = False
 cursor_pos_line_2 = 0
 cursor_blink_pos_2=0
 is_displaying_ans_x=False
 last_result=0
 is_return_pressed=False
-is_secure_pressed=False
+lanlap=0
 
 
 def slice_equation(display_text):
     global equation
-    equation.clear()  # Xóa danh sách trước khi thêm mới
+    equation.clear()  
     current = ""
 
     for char in display_text:
@@ -64,7 +62,7 @@ def slice_equation(display_text):
     if current:
         equation.append(current)
 
-    print(equation)
+    # print(equation)
 
 
 def update_display():
@@ -79,9 +77,6 @@ def update_display():
         else:
             lcd.write_string(display_text[0:16])
     lcd.cursor_pos=(0,cursor_blink_pos)
-    if is_x_enter:
-        lcd.cursor_pos = (1,0)
-        lcd.write_string("x="+initial_x[:cursor_pos_line_2])
     if is_displaying_ans_x:
         lcd.cursor_pos=(1,0)
         if (cursor_pos_line_2<16 and len(last_result)<=16):
@@ -111,13 +106,12 @@ def precedence(op):
         return 1
     if op in ('*', '/'): 
         return 2
-    if op == '^':  # Change to '^' for exponentiation
-        return 3  # Highest precedence for power
+    if op == '^':  
+        return 3  
     return 0
 
 def apply_op(a, b, op):
-    # print(f"a: {a}")
-    # print(f"b: {b}")
+
     if op == '+': return a + b
     if op == '-': return a - b
     if op == '*': return a * b
@@ -127,47 +121,53 @@ def apply_op(a, b, op):
             lcd.cursor_pos = (0, 0)
             return "Math Error"
         return a / b
-    if op == '^':  # Change to '^' for exponentiation
+    if op == '^':
         try:
-            return pow(a, b)  # Or use a ** b for exponentiation
+            return pow(a, b)
         except:
-            return "MATH ERROR"
+            return "Math Error"
 
 
 def is_operator(token):
     return token in ['+', '-', '*', '/', '^']
 
+
 def infix_to_postfix(expression):
     output, stack = [], []
     i, n = 0, len(expression)
 
-    if "j" in expression:
+    if "j" in expression:  # Kiểm tra số phức
         lcd.clear()
         lcd.cursor_pos = (0, 0)
         lcd.write_string("Complex number")
+        print("Complex number")
         return "Error"
 
     while i < n:
         token = expression[i]
 
-        # Xử lý số (kể cả số âm)
-        if token.isdigit() or token == '.' or (token in "+-" and (i == 0 or expression[i - 1] in "*/(^")):
+        # Xử lý số (bao gồm số âm)
+        if token.isdigit() or token == '.' or (token == '-' and (i == 0 or expression[i - 1] in "*/^+-(")): 
             num = token
             while i + 1 < n and (expression[i + 1].isdigit() or expression[i + 1] == '.'):
                 i += 1
                 num += expression[i]
-            output.append(num)
 
-        elif token == '(':
-            stack.append(token)
-        elif token == ')':
-            while stack and stack[-1] != '(':
-                output.append(stack.pop())
-            stack.pop()
-        elif is_operator(token):
+            output.append(num)  # Lưu số hoàn chỉnh vào danh sách
+
+        elif token in "*/^+-":  # Xử lý toán tử
             while stack and precedence(stack[-1]) >= precedence(token):
                 output.append(stack.pop())
             stack.append(token)
+
+        elif token == '(':  # Dấu mở ngoặc
+            stack.append(token)
+
+        elif token == ')':  # Dấu đóng ngoặc
+            while stack and stack[-1] != '(':
+                output.append(stack.pop())
+            stack.pop()  # Bỏ dấu '(' khỏi stack
+
         else:
             lcd.clear()
             lcd.cursor_pos = (0, 0)
@@ -182,31 +182,44 @@ def infix_to_postfix(expression):
     return output
 
 
+
 def evaluate_postfix(postfix):
     stack = []
-
+    # print(f"postfix in evaluate_postfix: {postfix}")
     for token in postfix:
+        # print(f"token in for loop: {token}")
         if token.lstrip('+-').replace('.', '', 1).isdigit():
             stack.append(float(token))
         elif is_operator(token):
             if len(stack) < 2:
+                # print(f"len stack: {len(stack)}")
                 lcd.clear()
                 lcd.cursor_pos = (0, 0)
                 lcd.write_string("Syntax Error POSTFIX")
+                print("Syntax Error POSTFIX")
                 return "Error"
             b, a = stack.pop(), stack.pop()
-            if a == "MATH ERROR" or b == "MATH ERROR":
+            # print(f"a= {a}")
+            # print(f"b= {b}")
+            # print(f"token= {token}")
+            
+            if a == "Math Error" or b == "Math Error":
+                print("Error in stack pop")
                 return "Change initial x"
             result = apply_op(a, b, token)
             if result == "Math Error":
+                print("Error in apply_op")
                 return "Error"
             stack.append(result)
+            # print(f"stack: {stack}")
+            # print("-------")
         else:
             lcd.clear()
             lcd.cursor_pos = (0, 0)
             lcd.write_string("Invalid Input evalute")
+            print("Invalid Input evalute")
             return "Error"
-
+    # print(f"len stack last: {len(stack)}")
     return stack[0] if len(stack) == 1 else "Error"
 
 
@@ -265,9 +278,12 @@ def normal_calculation(equation_para):
     expression = ''.join(equation_para)
     if "e" in expression:
         expression = expression.replace("e","*10^")
+    # print(f"expression: {expression}")
     postfix = infix_to_postfix(expression)
+    # print(f"infix_to_postfix: {postfix}")
     if postfix != "Error":
         result = evaluate_postfix(postfix)
+        # print(f"result after evaluate_postfix: {result}")
         if result != "Error" and result != "Change initial x":
             if result == 0.0: # eliminate negative -0.0
                 result = 0.0
@@ -275,51 +291,63 @@ def normal_calculation(equation_para):
     else:
         return postfix
 
-count_repeat=0
+
 def find_x(x_para):
-    start = time.perf_counter()  # Lấy thời gian bắt đầu
-    global count_repeat
-    SO_LAN_LAP=10000
-    recalculate=False
+    start = time.monotonic()  # Bắt đầu đếm thời gian
+    global lanlap
+    # global count_repeat
+    SO_LAN_LAP = 10000
+    recalculate = False
+    
     for lanlap in range(SO_LAN_LAP):
-        count_repeat+=1
         func_x_nor = [expr.replace("x", str(x_para)) for expr in equation]
         result_func_x_nor = normal_calculation(func_x_nor)
+
         if result_func_x_nor == "Error":
-            return "MATH Error" #Change to MATH Error
+            print("Error of result_func_x_nor")
+            return "Math Error"
         if result_func_x_nor == "Change initial x":
-            x_para+=0.1
+            x_para += 0.1
             continue
         if result_func_x_nor == 0 and x_para == 0:
             return x_para
-        result_func_x_deri = derivative_calculation(x_para)
-        if result_func_x_deri == "MATH Error":
-            return "MATH Error" #Change to MATH Error 
-        if(result_func_x_deri==0 or abs(result_func_x_deri) < 1e-9):
-            x_para+=2
-            recalculate=True
 
-        if(not recalculate):
-            result = x_para - (result_func_x_nor/result_func_x_deri)
-            if(abs(result-x_para)<1e-5):
+        result_func_x_deri = derivative_calculation(x_para)
+        if result_func_x_deri == "Math Error":
+            print("Error of result_func_x_deri")
+            return "Math Error"
+        if result_func_x_deri == 0 or abs(result_func_x_deri) < 1e-9:
+            x_para += 2
+            recalculate = True
+
+        if not recalculate:
+            result = x_para - (result_func_x_nor / result_func_x_deri)
+            if abs(result - x_para) < 1e-5:
                 func_x_nor = [expr.replace("x", str(result)) for expr in equation]
                 left_side = normal_calculation(func_x_nor)
                 if left_side == "Change initial x":
-                    x_para+=0.1
+                    x_para += 0.1
                     continue
-                if(left_side=="Error"):
-                    return "Cannot Solve" 
-                
-                if(abs(left_side)<1e-15 or (result-x_para==0)):
-                    end = time.perf_counter()  # Lấy thời gian kết thúc
-                    print(f"left side= {left_side}")
+                if left_side == "Error":
+                    return "Cannot Solve"
+
+                if abs(left_side) < 1e-13 or (result - x_para == 0):
+                    end = time.monotonic()  # Lấy thời gian kết thúc
                     print(f"Thời gian thực thi: {end - start:.6f} giây")
-                    return result  
+                    print(f"left side= {left_side}")
+                    return result
+                elif  abs(left_side) < 1e-11:
+                    end = time.monotonic()  # Lấy thời gian kết thúc
+                    print(f"Thời gian thực thi: {end - start:.6f} giây")
+                    print(f"left side= {left_side}")
+                    return result
                 else:
-                    if(lanlap==SO_LAN_LAP):
+                    if lanlap == SO_LAN_LAP - 1:
+                        print("Cannot Solve")
                         return "Cannot Solve"          
-            x_para=result
-        recalculate=False
+            x_para = result
+        recalculate = False
+
     return "Cannot Solve"
 
 def error_checking():
@@ -352,7 +380,7 @@ def math_error_display():
     equation = [] #Reset equation
     lcd.clear()
     lcd.cursor_pos = (0,0)
-    lcd.write_string("Math ERROR")
+    lcd.write_string("Math Error")
     print("Math Error")
 
 def process_exp(result):
@@ -365,7 +393,7 @@ def process_exp(result):
 
 def handle_button_press(row, column):
     global display_text, cursor_pos,cursor_blink_pos,equation
-    global is_return_pressed,is_secure_pressed,is_x_enter,is_displaying_ans_x,is_shift_left_pressed
+    global is_return_pressed,is_secure_pressed,is_displaying_ans_x,is_shift_left_pressed
     global initial_x,cursor_pos_line_2,cursor_blink_pos_2,last_result,count_repeat
     current_time = time.time() 
     if (current_time - last_pressed_time[row][column] > 0.2):  # Debounce 200ms
@@ -412,46 +440,31 @@ def handle_button_press(row, column):
                     cursor_blink_pos+=1
                     lcd.cursor_blink_pos=(0,cursor_blink_pos)
                 cursor_pos+=1
-        elif pressed_button == "Secure":
-            is_secure_pressed=True
         elif pressed_button == "AC":
             lcd.clear()
-            if is_secure_pressed:   
-                lcd.cursor_mode = 'hide'
-                horse_animation.horse_animation()        
-                lcd.clear()
-                lcd.cursor = (0,0)
-                lcd.write_string("GOODBYE.....")
-                subprocess.run('sudo poweroff', shell=True) # Delete this linsube after debugging
             display_text = ""
             cursor_pos = 0
             cursor_blink_pos=0
             subprocess.run('clear', shell=True) # Delete this line after debugging
-            is_x_enter=False
+          
             is_displaying_ans_x=False
             return
 
         elif pressed_button == "Return":
             is_secure_pressed=False
             lcd.clear()
-            if is_x_enter:
-                is_return_pressed=True
-            is_x_enter = False
             is_displaying_ans_x=False
             
         elif pressed_button == "Calculate":
             is_secure_pressed=False
-            if is_x_enter:
-                is_x_enter=False
-                return
-            elif error_checking():
+            if error_checking():
                 syntax_error_display()
                 return
             else:
-                print("calculation....")
+                # print("calculation....")
                 equation = []    
                 temp_text = check_x_syntax(display_text,False)
-                print(f"temp_text= {temp_text}")
+                # print(f"temp_text= {temp_text}")
                 if(temp_text == "Syntax Error"):
                     return
                 else:
@@ -460,7 +473,7 @@ def handle_button_press(row, column):
                     lcd.cursor_pos = (1, 0)
                     last_result=str(last_result)
                     print(f"last result= {last_result}")
-                    if last_result == "MATH ERROR":
+                    if last_result == "Math Error":
                         math_error_display()
                         return 
                     if len(last_result)>15:
@@ -473,6 +486,7 @@ def handle_button_press(row, column):
                     is_displaying_ans_x=True
 
         elif pressed_button == "Solve":
+            
             is_secure_pressed=False
             if error_checking():          
                 syntax_error_display()
@@ -480,9 +494,10 @@ def handle_button_press(row, column):
 
             if not is_displaying_ans_x:
                 subprocess.run('clear', shell=True) # Delete this linsube after debugging
+                # print(f"initial x: {initial_x} ")
                 equation = []    
                 temp_text = check_x_syntax(display_text,True)
-                print(f"temp text: {temp_text}")
+                # print(f"temp text: {temp_text}")
                 if(temp_text == "Syntax Error"):
                     return
                 else:
@@ -490,55 +505,40 @@ def handle_button_press(row, column):
                         position=temp_text.index("=")
                         temp_text = temp_text[:position] + "-(" + temp_text[position+1:]+")"
                     slice_equation(temp_text) # Generate equation after slicing
-                if "x" in temp_text :
-                    lcd.cursor_pos = (1,0)
-                    lcd.write_string("x=")
-                    is_in_solving = True
-                    initial_x = ''
-                    is_x_enter = True
-                    while(is_x_enter):
-                        scan_keypad()
-                
-                    if not is_return_pressed:
-                        last_result = find_x(float(initial_x)) # Take result
-                        if last_result == "Error" or last_result == "Cannot Solve" or last_result == "MATH Error":
-                            lcd.clear()
-                            lcd.cursor_pos = (0, 0)
-                            lcd.write_string(last_result)
-                            count_repeat=0
-                            return
-                        else:
-                            is_displaying_ans_x=True
-                            last_result=str(last_result)
-                            initial_x=last_result
-                        if len(last_result)>15:
-                            cursor_pos_line_2=16
-                            cursor_blink_pos_2=15
-                        else:
-                            cursor_pos_line_2=len(last_result)
-                            cursor_blink_pos_2=cursor_pos_line_2
-                        last_result = process_exp(last_result)
-                        print(f"ket qua cuoi cung= {last_result}")
-                        print(f"So lan lap: {count_repeat}")
+                if "x" in temp_text :                  
+                    last_result = find_x(float(initial_x)) # Take result
+                    if last_result == "Error" or last_result == "Cannot Solve" or last_result == "Math Error":
+                        lcd.clear()
+                        lcd.cursor_pos = (0, 0)
+                        lcd.write_string(last_result)
+                        count_repeat=0
+                        return
                     else:
-                        is_return_pressed=False
-                       
+                        is_displaying_ans_x=True
+                        last_result=str(last_result)
+                        initial_x=last_result
+                    if len(last_result)>15:
+                        cursor_pos_line_2=16
+                        cursor_blink_pos_2=15
+                    else:
+                        cursor_pos_line_2=len(last_result)
+                        cursor_blink_pos_2=cursor_pos_line_2
+                    last_result = process_exp(last_result)
+                    print(f"ket qua cuoi cung= {last_result}")
+                    print(f"So lan lap: {lanlap}")
+                  
                 else:
                     syntax_error_display()
         else:
             is_secure_pressed=False
             # Add character
-            if  not is_x_enter:
-                if(cursor_pos<16):
-                    display_text = display_text[:cursor_blink_pos] + str(pressed_button) + display_text[cursor_blink_pos:]
-                else:
-                    display_text = display_text[:cursor_pos] + str(pressed_button)+ display_text[cursor_pos:]
-                cursor_pos += 1
-                if(cursor_blink_pos<15):
-                    cursor_blink_pos+=1
-            else: 
-                initial_x = initial_x[:cursor_pos_line_2]+str(pressed_button)
-                cursor_pos_line_2+=1 
+            if(cursor_pos<16):
+                display_text = display_text[:cursor_blink_pos] + str(pressed_button) + display_text[cursor_blink_pos:]
+            else:
+                display_text = display_text[:cursor_pos] + str(pressed_button)+ display_text[cursor_pos:]
+            cursor_pos += 1
+            if(cursor_blink_pos<15):
+                cursor_blink_pos+=1
         
         cursor_pos = min(cursor_pos, len(display_text))
         
