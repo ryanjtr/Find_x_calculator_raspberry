@@ -47,6 +47,7 @@ last_result=0
 is_return_pressed=False
 is_secure_pressed=False
 
+
 def slice_equation(display_text):
     global equation
     equation.clear()  # Xóa danh sách trước khi thêm mới
@@ -223,13 +224,13 @@ def derivative_calculation(x_para):
         if result_xh is not None:
             break
         cofficient_h /= 10
-    while not is_ok:
+    while True:
         func_x = [expr.replace("x", str(x_para - cofficient_h)) for expr in equation]
         result_x = normal_calculation(func_x)
         if result_x == "Change initial x":
             x_para+=0.1
         else:
-            is_ok=True
+            break
     return (result_xh - result_x) / (2 * cofficient_h) if result_xh != "Error" and result_x != "Error" else "Math Error"
 
 
@@ -562,7 +563,7 @@ def scan_keypad():
             handle_button_press(row, 2)
         if c3.is_pressed:
             handle_button_press(row, 3)
-# lcd.write_string(f"{demo_text[:5]}")
+
 while True:
     scan_keypad()
 
