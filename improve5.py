@@ -329,37 +329,46 @@ def derivative_calculation(x_para):
     return (result_xh - result_x) / (2 * cofficient_h) if result_xh != "Error" and result_x != "Error" else "Math Error"
 
 
-def check_x_syntax(expression_text, is_finding_x):
+def check_expression_syntax(expression_text, is_finding_x):
     global initial_x
-
-    if "x" not in expression_text:
-        return expression_text  # Không có "x" thì không cần xử lý
-
     new_expression = []
     length = len(expression_text)
+    i = 0
 
-    for i, char in enumerate(expression_text):
-        if char == 'x':
+    while i < length:
+        # Xử lý sin, cos, tan, cot
+        if expression_text[i:i+4] in ["sin(", "cos(", "tan(", "cot("]:
+            # Nếu trước là số hoặc 'x', thêm '*'
+            if i > 0 and (expression_text[i - 1].isdigit() or expression_text[i - 1] == 'x'):
+                new_expression.append("*")
+            new_expression.append(expression_text[i:i+4])
+            i += 4
+            continue
+
+        # Xử lý 'x'
+        if expression_text[i] == 'x':
+            # Kiểm tra lỗi cú pháp: số sau 'x'
             if i < length - 1 and expression_text[i + 1].isdigit():
                 syntax_error_display()
                 return "Syntax Error"
 
-            # Xử lý các trường hợp trước "x"
+            # Nếu trước là số, thêm '*'
             if i > 0 and expression_text[i - 1].isdigit():
                 new_expression.append("*")
 
-            # Thay thế "x" theo mục đích
+            # Thay thế 'x' nếu cần
             new_expression.append("x" if is_finding_x else str(initial_x))
-        else:
-            new_expression.append(char)
+            i += 1
+            continue
+
+        # Các ký tự khác
+        new_expression.append(expression_text[i])
+        i += 1
 
     return ''.join(new_expression)
 
-def check_trigonometry_syntax(expression_text):
 
-    if "sin(" not in expression_text or "cos(" not in expression_text or "tan(" not in expression_text or "cot(" not in expression_text:
-        return expression_text
-
+          
 def normal_calculation(equation_para):
     expression = ''.join(equation_para)
     if "e" in expression:
@@ -564,8 +573,8 @@ def handle_button_press(row, column):
                 else:
                     # print("calculation....")
                     equation = []    
-                    temp_text = check_x_syntax(display_text,False)
-                    # print(f"temp_text= {temp_text}")
+                    temp_text = check_expression_syntax(display_text,False)
+                    print(f"temp_text= {temp_text}")
                     if(temp_text == "Syntax Error"):
                         return
                     else:
@@ -597,8 +606,8 @@ def handle_button_press(row, column):
                     subprocess.run('clear', shell=True) # Delete this linsube after debugging
                     # print(f"initial x: {initial_x} ")
                     equation = []    
-                    temp_text = check_x_syntax(display_text,True)
-                    # print(f"temp text: {temp_text}")
+                    temp_text = check_expression_syntax(display_text,True)
+                    print(f"temp text: {temp_text}")
                     if(temp_text == "Syntax Error"):
                         return
                     else:
