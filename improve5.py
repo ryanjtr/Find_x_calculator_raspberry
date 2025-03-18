@@ -30,6 +30,8 @@ display_text="cos(3x)-sin(5x)=3^0.5*(cos(5x)-sin(3x))"
 #display_text = "sin(x)-1"
 
 
+#display_text=""
+
 equation = []
 cursor_pos = 0  
 cursor_blink_pos = 0
@@ -44,7 +46,7 @@ is_return_pressed = False
 lanlap = 0
 is_in_menu=False
 is_trigonometry_selected=False
-# Danh sách các hàm toán học được hỗ trợ
+
 supported_functions = ["sin", "cos", "tan", "cot"]
 
 def slice_equation(display_text):
@@ -505,49 +507,87 @@ def handle_button_press(row, column):
             lcd.write_string("3.Tan   4.Cot")
             return
         if (pressed_button == "Del"): #Delete character before blinking cursor
-            if(not is_in_menu):
-                if (cursor_blink_pos>0 and cursor_pos <=16):
-                    display_text = display_text[:cursor_blink_pos-1] + display_text[cursor_blink_pos:]
-                    if(not is_shift_left_pressed):
-                        cursor_blink_pos-=1
+            if not is_in_menu:
+                if cursor_pos > 0:  # Có ký tự phía trước để xóa
+                    # check trigonometry before blink cursor
+                    if cursor_pos >= 4:
+                        last_four = display_text[cursor_pos - 4 : cursor_pos]
+                        if last_four in ["sin(", "cos(", "tan(", "cot("]:
+                            # delete 4 char
+                            display_text = display_text[:cursor_pos - 4] + display_text[cursor_pos:]
+                            cursor_pos -= 4
+                            print(f"Deleted trig func: {last_four}")
+                        else:
+                            # delete 1 char
+                            display_text = display_text[:cursor_pos - 1] + display_text[cursor_pos:]
+                            cursor_pos -= 1
                     else:
-                        is_shift_left_pressed=0
-                else:
-                    display_text = display_text[cursor_pos-16:cursor_pos]
+                        # if not trigonometry -> delete 1 char
+                        display_text = display_text[:cursor_pos - 1] + display_text[cursor_pos:]
+                        cursor_pos -= 1
 
+                    # update offset and blink pos
+                    display_offset = max(0, cursor_pos - 15)
+                    cursor_blink_pos = cursor_pos - display_offset
+
+                    lcd.cursor_pos = (0, cursor_blink_pos)
+                    update_display()
+                    print(f"Deleted char: cursor_pos = {cursor_pos}, blink = {cursor_blink_pos}, display_text = {display_text}")
         elif pressed_button == "Shift left":
-            print(f"cursor blink pos: {cursor_blink_pos}")
-            print(f"cursor pos: {cursor_pos}")
-            if(not is_in_menu):
+            if not is_in_menu:
                 if is_displaying_ans_x:
-                    if  cursor_pos_line_2>15:
-                        cursor_pos_line_2-=1
-                    else:
-                        return
+                    if cursor_pos_line_2 > 0:
+                        cursor_pos_line_2 -= 1
                 else:
-                    if  (cursor_blink_pos!=0 and cursor_pos <=16):
-                        cursor_blink_pos-=1
-                        lcd.cursor_pos=(0,cursor_blink_pos)
-                        is_shift_left_pressed=1
-                        cursor_pos-=1
-                        print(f"cursor blink pos after shift left: {cursor_blink_pos}")
-                        return
-                    else:
-                        if(cursor_pos!= 0):
-                            cursor_pos-=1
-                        # print(f"cursor pos after -1: {cursor_pos}")
+                    if cursor_pos > 0:
+                        # check trigonometry
+                        if cursor_pos >= 4:
+                            last_four = display_text[cursor_pos - 4: cursor_pos]
+                            # print(f"last_four= {last_four}")
+                            if last_four in ["sin(", "cos(", "tan(", "cot("]:
+                                cursor_pos -= 4
+                                display_offset = max(0, cursor_pos - 15)
+                                cursor_blink_pos = cursor_pos - display_offset
+                                lcd.cursor_pos = (0, cursor_blink_pos)
+                                update_display()
+                                # print(f"Detected trig func: moved left to {cursor_pos}, blink: {cursor_blink_pos}")
+                                return
+                        # shift left normally
+                        cursor_pos -= 1
+                        display_offset = max(0, cursor_pos - 15)
+                        cursor_blink_pos = cursor_pos - display_offset
+                        lcd.cursor_pos = (0, cursor_blink_pos)
+                        update_display()
+                        # print(f"Shift left: cursor_pos = {cursor_pos}, blink = {cursor_blink_pos}")
+
         elif pressed_button == "Shift right":
-            if(not is_in_menu):
+            if not is_in_menu:
                 if is_displaying_ans_x:
-                    if len(last_result)<15:
-                        return
-                    elif cursor_pos_line_2 < len(last_result):
-                        cursor_pos_line_2+=1
+                    if cursor_pos_line_2 < len(last_result) - 1:
+                        cursor_pos_line_2 += 1
                 else:
-                    if(cursor_blink_pos<15 and cursor_blink_pos<=cursor_pos):
-                        cursor_blink_pos+=1
-                        lcd.cursor_blink_pos=(0,cursor_blink_pos)
-                    cursor_pos+=1
+                    if cursor_pos < len(display_text):
+                        # check trigonometry
+                        if cursor_pos <= len(display_text) - 4:
+                            next_four = display_text[cursor_pos: cursor_pos + 4]
+                            # print(f"next_four= {next_four}")
+                            if next_four in ["sin(", "cos(", "tan(", "cot("]:
+                                cursor_pos += 4
+                                display_offset = max(0, cursor_pos - 15)
+                                cursor_blink_pos = cursor_pos - display_offset
+                                lcd.cursor_pos = (0, cursor_blink_pos)
+                                update_display()
+                                # print(f"Detected trig func: moved right to {cursor_pos}, blink: {cursor_blink_pos}")
+                                return
+                        # shift right normally
+                        cursor_pos += 1
+                        display_offset = max(0, cursor_pos - 15)
+                        cursor_blink_pos = cursor_pos - display_offset
+                        lcd.cursor_pos = (0, cursor_blink_pos)
+                        update_display()
+                        # print(f"Shift right: cursor_pos = {cursor_pos}, blink = {cursor_blink_pos}")
+
+
         elif pressed_button == "AC":
             lcd.clear()
             display_text = ""
