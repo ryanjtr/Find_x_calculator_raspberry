@@ -1,3 +1,8 @@
+# Bat dau tinh thoi gian khi bam tim x
+# Bo qua kiem tra syntax temp
+# bo lenh clear terminal -> tgian nhanh nhat
+
+
 from RPLCD.i2c import CharLCD
 import time
 from gpiozero import LED, Button
@@ -396,7 +401,7 @@ def normal_calculation(equation_para):
 
 
 def find_x(x_para):
-    start = time.monotonic()  # Bắt đầu đếm thời gian
+    
     global lanlap
     SO_LAN_LAP = 10000
     recalculate = False
@@ -434,13 +439,12 @@ def find_x(x_para):
                     return "Cannot Solve"
 
                 if abs(left_side) < 1e-13 or (result - x_para == 0):
-                    end = time.monotonic()  # Lấy thời gian kết thúc
-                    print(f"Thời gian thực thi: {end - start:.6f} giây")
+                    
                     print(f"left side= {left_side}")
                     return result
                 elif abs(left_side) < 1e-11:
-                    end = time.monotonic()  # Lấy thời gian kết thúc
-                    print(f"Thời gian thực thi: {end - start:.6f} giây")
+                    # end = time.monotonic()  # Lấy thời gian kết thúc
+                    # print(f"Thời gian thực thi: {end - start:.6f} giây")
                     print(f"left side= {left_side}")
                     return result
                 else:
@@ -549,14 +553,12 @@ def handle_button_press(row, column):
                         # check trigonometry
                         if cursor_pos >= 4:
                             last_four = display_text[cursor_pos - 4: cursor_pos]
-                            # print(f"last_four= {last_four}")
                             if last_four in ["sin(", "cos(", "tan(", "cot("]:
                                 cursor_pos -= 4
                                 display_offset = max(0, cursor_pos - 15)
                                 cursor_blink_pos = cursor_pos - display_offset
                                 lcd.cursor_pos = (0, cursor_blink_pos)
                                 update_display()
-                                # print(f"Detected trig func: moved left to {cursor_pos}, blink: {cursor_blink_pos}")
                                 return
                         # shift left normally
                         cursor_pos -= 1
@@ -620,7 +622,6 @@ def handle_button_press(row, column):
                     # print("calculation....")
                     equation = []    
                     temp_text = check_expression_syntax(display_text,False)
-                    print(f"temp_text= {temp_text}")
                     if(temp_text == "Syntax Error"):
                         return
                     else:
@@ -642,41 +643,28 @@ def handle_button_press(row, column):
                         is_displaying_ans_x=True
 
         elif pressed_button == "Solve":
+            start = time.monotonic()  # Bắt đầu đếm thời gian
             if(not is_in_menu):
-                if error_checking():          
-                    syntax_error_display()
-                    return
-
-                if not is_displaying_ans_x:
-                    subprocess.run('clear', shell=True) # Delete this linsube after debugging
+                if not is_displaying_ans_x:               
                     equation = []    
                     temp_text = check_expression_syntax(display_text,True)
-                    if(temp_text == "Syntax Error"):
-                        return
-                    else:
-                        if "=" in temp_text:
-                            position=temp_text.index("=")
-                            temp_text = temp_text[:position] + "-(" + temp_text[position+1:]+")"
-                        slice_equation(temp_text) # Generate equation after slicing
+                    if "=" in temp_text:
+                        position=temp_text.index("=")
+                        temp_text = temp_text[:position] + "-(" + temp_text[position+1:]+")"
+                    slice_equation(temp_text) # Generate equation after slicing
                     if "x" in temp_text :                  
                         last_result = find_x(float(initial_x)) # Take result
-                        if last_result == "Error" or last_result == "Cannot Solve" or last_result == "Math Error":
-                            lcd.clear()
-                            lcd.cursor_pos = (0, 0)
-                            lcd.write_string(last_result)
-                            count_repeat=0
-                            return
-                        else:
-                            is_displaying_ans_x=True
-                            last_result=str(last_result)
-                            # initial_x=last_result #Uncomment this if don`t need replace initial_x
+                        is_displaying_ans_x=True
+                        last_result=str(last_result)
+                        # initial_x=last_result #Uncomment this if don`t need replace initial_x
                         if len(last_result)>15:
                             cursor_pos_line_2=16
                             cursor_blink_pos_2=15
                         else:
                             cursor_pos_line_2=len(last_result)
                             cursor_blink_pos_2=cursor_pos_line_2
-                        last_result = process_exp(last_result)
+                        end = time.monotonic()  # Lấy thời gian kết thúc
+                        print(f"Thời gian thực thi: {end - start:.6f} giây")
                         print(f"ket qua cuoi cung= {last_result}")
                         print(f"So lan lap: {lanlap}")
                     

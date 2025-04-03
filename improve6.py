@@ -1,3 +1,5 @@
+# Bat dau tinh thoi gian khi bam tim x
+
 from RPLCD.i2c import CharLCD
 import time
 from gpiozero import LED, Button
@@ -396,7 +398,7 @@ def normal_calculation(equation_para):
 
 
 def find_x(x_para):
-    start = time.monotonic()  # Bắt đầu đếm thời gian
+    
     global lanlap
     SO_LAN_LAP = 10000
     recalculate = False
@@ -434,13 +436,12 @@ def find_x(x_para):
                     return "Cannot Solve"
 
                 if abs(left_side) < 1e-13 or (result - x_para == 0):
-                    end = time.monotonic()  # Lấy thời gian kết thúc
-                    print(f"Thời gian thực thi: {end - start:.6f} giây")
+                    
                     print(f"left side= {left_side}")
                     return result
                 elif abs(left_side) < 1e-11:
-                    end = time.monotonic()  # Lấy thời gian kết thúc
-                    print(f"Thời gian thực thi: {end - start:.6f} giây")
+                    # end = time.monotonic()  # Lấy thời gian kết thúc
+                    # print(f"Thời gian thực thi: {end - start:.6f} giây")
                     print(f"left side= {left_side}")
                     return result
                 else:
@@ -642,13 +643,15 @@ def handle_button_press(row, column):
                         is_displaying_ans_x=True
 
         elif pressed_button == "Solve":
+            start = time.monotonic()  # Bắt đầu đếm thời gian
             if(not is_in_menu):
+                # print("In solve")
                 if error_checking():          
                     syntax_error_display()
                     return
 
                 if not is_displaying_ans_x:
-                    subprocess.run('clear', shell=True) # Delete this linsube after debugging
+                    # subprocess.run('clear', shell=True) # Delete this linsube after debugging
                     equation = []    
                     temp_text = check_expression_syntax(display_text,True)
                     if(temp_text == "Syntax Error"):
@@ -676,7 +679,9 @@ def handle_button_press(row, column):
                         else:
                             cursor_pos_line_2=len(last_result)
                             cursor_blink_pos_2=cursor_pos_line_2
-                        last_result = process_exp(last_result)
+                        # last_result = process_exp(last_result)
+                        end = time.monotonic()  # Lấy thời gian kết thúc
+                        print(f"Thời gian thực thi: {end - start:.6f} giây")
                         print(f"ket qua cuoi cung= {last_result}")
                         print(f"So lan lap: {lanlap}")
                     
