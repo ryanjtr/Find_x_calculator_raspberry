@@ -1,3 +1,5 @@
+# Bat dau tinh thoi gian khi bam tim x
+
 from RPLCD.i2c import CharLCD
 import time
 from gpiozero import LED, Button
@@ -26,13 +28,13 @@ lcd.clear()
 
 # display_text = "(x^14-3*x^12+7*x^9)-(5*x^8+2*x^6)+(4*x^5-11*x^3+6*x^2)-(20*x-50)"
 # display_text = "3*sin(3x)-3^0.5*cos(9x)=1+4*sin(3x)^3"
-# display_text="cos(3x)-sin(5x)=3^0.5*(cos(5x)-sin(3x))"
-#display_text = "sin(x)-1"
-# display_text="x^9.1-14.08*(x+0.9)^8.6-(x^1.2+2.2*x-99.8)^2.2"
-display_text="0.0001*x^1111.1-9999.99*(192.2*x^2-2.2*x+14.8)"
+# display_text="(5.5*(x-3.3)^4.5*(x-2.2)^1.2-1.2*(x-3.3)^5.5*(x-2.2)^0.2)/(x-2.2)^2.4"
+# display_text = "6*(x+4)^5*(x-7)^8+8*(x+4)^6*(x-7)^7"
+# display_text="30.3*(x-8.88)^29.3"
+# display_text="0.0001*x^1111.1-9999.99*(192.2*x^2-2.2*x+14.8)"
 
 
-#display_text=""
+display_text=""
 
 equation = []
 cursor_pos = 0  
@@ -89,7 +91,7 @@ def slice_equation(display_text):
 
 
 def update_display():
-    
+    # global count_repeat
     lcd.clear()
     lcd.cursor_pos=(0,0)
     if (cursor_pos<15 and len(display_text)<=15):
@@ -110,7 +112,7 @@ def update_display():
             else:
                 lcd.write_string(last_result[0:16])
         lcd.cursor_pos=(1,cursor_blink_pos_2)
-        
+        # count_repeat=0
     print(f"update display: {display_text}")
 
 
@@ -320,20 +322,25 @@ def derivative_calculation(x_para):
         func_xh = [expr.replace("x", str(x_para + cofficient_h)) for expr in equation]
         result_xh = normal_calculation(func_xh)
         if result_xh == "Change initial x":
+            return "Change initial x"
             x_para += 0.1
             continue
         if result_xh is not None:
             break
         cofficient_h /= 10
         
+    # cofficient_h = 1e-9    
     while True:
         func_x = [expr.replace("x", str(x_para - cofficient_h)) for expr in equation]
         result_x = normal_calculation(func_x)
         if result_x == "Change initial x":
             x_para += 0.1
-        else:
+            continue
+        if result_x is not None:
             break
-            
+        # cofficient_h /= 10
+
+    # print(f"(result_xh - result_x) / (2 * cofficient_h)= {(result_xh - result_x) / (2 * cofficient_h)}; xpara= {x_para}")       
     return (result_xh - result_x) / (2 * cofficient_h) if result_xh != "Error" and result_x != "Error" else "Math Error"
 
 
@@ -396,7 +403,7 @@ def normal_calculation(equation_para):
 
 
 def find_x(x_para):
-    start = time.monotonic()  # Bắt đầu đếm thời gian
+    
     global lanlap
     SO_LAN_LAP = 10000
     recalculate = False
@@ -411,20 +418,25 @@ def find_x(x_para):
         if result_func_x_nor == "Change initial x":
             x_para += 0.1
             continue
-        if result_func_x_nor == 0 and x_para == 0:
+        if result_func_x_nor == 0:
             return x_para
 
+        # print(f"result_func_x_nor= {result_func_x_nor}; xpara= {x_para}")
         result_func_x_deri = derivative_calculation(x_para)
         if result_func_x_deri == "Math Error":
             print("Error of result_func_x_deri")
             return "Math Error"
         if result_func_x_deri == 0 or abs(result_func_x_deri) < 1e-9:
-            x_para += 2
+            x_para += 0.1
+            # print("stuck in here")
             recalculate = True
+
 
         if not recalculate:
             result = x_para - (result_func_x_nor / result_func_x_deri)
-            if abs(result - x_para) < 1e-5:
+            # print(f"result{lanlap}= {result}")
+            # print(f"result-xpara{lanlap}= {abs(result - x_para)}")
+            if abs(result - x_para) < 1e-1:        
                 func_x_nor = [expr.replace("x", str(result)) for expr in equation]
                 left_side = normal_calculation(func_x_nor)
                 if left_side == "Change initial x":
@@ -434,17 +446,16 @@ def find_x(x_para):
                     return "Cannot Solve"
 
                 if abs(left_side) < 1e-13 or (result - x_para == 0):
-                    end = time.monotonic()  # Lấy thời gian kết thúc
-                    print(f"Thời gian thực thi: {end - start:.6f} giây")
-                    print(f"left side= {left_side}")
+                    print(f"left side1= {left_side}")
                     return result
                 elif abs(left_side) < 1e-11:
-                    end = time.monotonic()  # Lấy thời gian kết thúc
-                    print(f"Thời gian thực thi: {end - start:.6f} giây")
-                    print(f"left side= {left_side}")
+                    print(f"left side2= {left_side}")
                     return result
                 else:
                     if lanlap == SO_LAN_LAP - 1:
+                        if abs(left_side) < 1e-9:
+                            print(f"left side2= {left_side}")
+                            return result
                         print("Cannot Solve")
                         return "Cannot Solve"          
             x_para = result
@@ -497,6 +508,7 @@ def handle_button_press(row, column):
     global display_text, cursor_pos,cursor_blink_pos,equation
     global is_return_pressed,is_secure_pressed,is_displaying_ans_x,is_shift_left_pressed
     global initial_x,cursor_pos_line_2,cursor_blink_pos_2,last_result,is_in_menu,is_trigonometry_selected
+    # global count_repeat
     current_time = time.time() 
     if (current_time - last_pressed_time[row][column] > 0.2):  # Debounce 200ms
         last_pressed_time[row][column] = current_time
@@ -642,13 +654,14 @@ def handle_button_press(row, column):
                         is_displaying_ans_x=True
 
         elif pressed_button == "Solve":
+            
             if(not is_in_menu):
+                # print("In solve")
                 if error_checking():          
                     syntax_error_display()
                     return
 
                 if not is_displaying_ans_x:
-                    subprocess.run('clear', shell=True) # Delete this linsube after debugging
                     equation = []    
                     temp_text = check_expression_syntax(display_text,True)
                     if(temp_text == "Syntax Error"):
@@ -658,13 +671,16 @@ def handle_button_press(row, column):
                             position=temp_text.index("=")
                             temp_text = temp_text[:position] + "-(" + temp_text[position+1:]+")"
                         slice_equation(temp_text) # Generate equation after slicing
-                    if "x" in temp_text :                  
+                    if "x" in temp_text :
+
+                        start = time.monotonic()  # Bắt đầu đếm thời gian       
                         last_result = find_x(float(initial_x)) # Take result
+                        end = time.monotonic()  # Lấy thời gian kết thúc
+
                         if last_result == "Error" or last_result == "Cannot Solve" or last_result == "Math Error":
                             lcd.clear()
                             lcd.cursor_pos = (0, 0)
                             lcd.write_string(last_result)
-                            
                             return
                         else:
                             is_displaying_ans_x=True
@@ -677,6 +693,7 @@ def handle_button_press(row, column):
                             cursor_pos_line_2=len(last_result)
                             cursor_blink_pos_2=cursor_pos_line_2
                         last_result = process_exp(last_result)
+                        print(f"Thời gian thực thi: {end - start:.6f} giây")
                         print(f"ket qua cuoi cung= {last_result}")
                         print(f"So lan lap: {lanlap}")
                     
